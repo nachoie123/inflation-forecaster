@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.claude/
+_chart_preview.svg
+.DS_Store

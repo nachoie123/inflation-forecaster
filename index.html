@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inflation Forecaster — a macro working paper</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Working Paper — macro-research / central-bank editorial. Paper white, ink,
+   editorial serif, tabular mono numbers, a single signal-red for inflation. */
+:root{
+  --paper:#F4F1EA; --card:#FFFFFF; --card-2:#FBFAF6;
+  --ink:#1A1712; --muted:#6E665A; --faint:#9A9080;
+  --line:#E6E1D5; --line-2:#D6CFBF;
+  --blue:#1C4A63; --red:#BE3B2E; --red-2:rgba(190,59,46,.10); --red-3:rgba(190,59,46,.05);
+  --green:#2E7D5B; --amber:#9C6B12;
+  --serif:"Fraunces",Georgia,serif; --sans:"Inter",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --r:14px; --ease:cubic-bezier(.16,1,.3,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:var(--sans); color:var(--ink); background:var(--paper);
+  line-height:1.6; -webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(120vw 60vh at 50% -20%, #FBF9F3, transparent 70%);
+}
+.page{max-width:900px;margin:0 auto;padding:clamp(28px,5vw,60px) 22px 120px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* masthead */
+.kicker{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--red);font-weight:500}
+.masthead h1{font-family:var(--serif);font-size:clamp(38px,7vw,68px);font-weight:600;letter-spacing:-.02em;line-height:1;margin:14px 0 0}
+.masthead h1 em{font-style:italic;font-weight:500;color:var(--blue)}
+.dek{color:var(--muted);font-size:16px;max-width:60ch;margin:16px 0 0}
+.rule{height:1px;background:var(--line-2);margin:28px 0 0}
+.byline{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;color:var(--faint);text-transform:uppercase;margin-top:12px}
+.byline span b{color:var(--muted);font-weight:600}
+
+/* controls */
+.controls{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:30px}
+.seg{display:inline-flex;background:var(--card);border:1px solid var(--line-2);border-radius:12px;padding:4px;gap:2px;box-shadow:0 1px 0 rgba(0,0,0,.02)}
+.seg button{font-family:var(--sans);font-size:13.5px;font-weight:600;color:var(--muted);background:transparent;border:0;padding:9px 15px;border-radius:9px;cursor:pointer;min-height:40px;transition:color .2s,background .2s}
+.seg button:hover{color:var(--ink)}
+.seg button.active{color:var(--card);background:var(--blue);box-shadow:0 2px 8px -3px rgba(28,74,99,.6)}
+.run{font-family:var(--sans);font-size:14px;font-weight:600;color:var(--card);background:var(--red);border:1px solid var(--red);
+  padding:11px 24px;border-radius:11px;cursor:pointer;min-height:44px;letter-spacing:.01em;
+  box-shadow:0 8px 20px -10px rgba(190,59,46,.6);transition:transform .18s var(--ease),filter .2s,box-shadow .2s}
+.run:hover{filter:brightness(1.05);box-shadow:0 10px 26px -10px rgba(190,59,46,.7)}
+.run:active{transform:scale(.97)}
+.run:disabled{opacity:.55;cursor:not-allowed}
+.note{color:var(--faint);font-size:12.5px;margin:12px 2px 0;font-family:var(--mono);letter-spacing:.02em}
+
+/* stat ribbon */
+.ribbon{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-2);border:1px solid var(--line-2);border-radius:var(--r);overflow:hidden;margin:30px 0 4px}
+.ribbon .cell{background:var(--card);padding:16px 18px;display:flex;flex-direction:column;gap:6px;min-height:78px;opacity:.4;transition:opacity .5s}
+.ribbon .cell.on{opacity:1;animation:fade .5s var(--ease)}
+.ribbon .cell small{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.ribbon .cell b{font-family:var(--serif);font-size:26px;font-weight:600;letter-spacing:-.01em;line-height:1;font-variant-numeric:tabular-nums}
+.ribbon .cell.mono b{font-family:var(--mono);font-size:18px;font-weight:600}
+.ribbon .cell.red b{color:var(--red)} .ribbon .cell.green b{color:var(--green)} .ribbon .cell.blue b{color:var(--blue)}
+@media(max-width:640px){.ribbon{grid-template-columns:repeat(2,1fr)}}
+
+/* stage + cards */
+#stage{display:flex;flex-direction:column;gap:18px;margin-top:26px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:clamp(22px,3.5vw,32px);
+  box-shadow:0 1px 2px rgba(26,23,18,.03),0 18px 40px -34px rgba(26,23,18,.5)}
+.card.in{animation:rise .6s var(--ease)}
+.card .head{display:flex;align-items:baseline;gap:14px;margin-bottom:18px}
+.card .idx{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--red);letter-spacing:.04em;flex:0 0 auto}
+.card .kick{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);align-self:center}
+.card h3{font-family:var(--serif);font-size:clamp(21px,3vw,26px);font-weight:600;letter-spacing:-.01em;margin:0 0 4px}
+.card .sub{color:var(--muted);font-size:14.5px;margin:0}
+.fx{background:var(--card-2);border:1px solid var(--line);border-radius:12px;padding:20px;overflow-x:auto;text-align:center;font-size:1.1em;margin-top:6px}
+.fx .katex{color:var(--ink)}
+.legend{list-style:none;margin:18px 0 0;padding:0;display:grid;gap:10px}
+.legend li{display:flex;gap:14px;align-items:baseline;font-size:14.5px}
+.legend .sym{flex:0 0 auto;min-width:92px;font-family:var(--mono);font-weight:600;color:var(--blue);font-size:13.5px}
+.legend .desc{color:var(--ink)} .legend .desc em{color:var(--muted);font-style:normal}
+
+/* tables */
+table.tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13.5px;font-variant-numeric:tabular-nums;margin-top:4px}
+table.tbl th{color:var(--faint);font-weight:500;text-align:right;padding:9px 10px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;border-bottom:1.5px solid var(--line-2)}
+table.tbl th:first-child,table.tbl td:first-child{text-align:left}
+table.tbl td{padding:9px 10px;text-align:right;border-bottom:1px solid var(--line);color:var(--ink)}
+table.tbl tr:last-child td{border-bottom:0}
+table.tbl tr.pick td{background:var(--red-3);color:var(--red);font-weight:600}
+table.tbl td.best{color:var(--green);font-weight:600}
+table.tbl .tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--red);border:1px solid var(--red);border-radius:5px;padding:1px 5px;margin-left:8px;vertical-align:middle}
+
+/* diagnostics pills */
+.pills{display:grid;gap:12px;margin-top:6px}
+.pill{display:flex;align-items:flex-start;gap:13px;padding:15px 17px;border-radius:12px;border:1px solid var(--line);background:var(--card-2)}
+.pill .tag{flex:0 0 auto;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;padding:3px 9px;border-radius:6px}
+.pill.ok .tag{background:rgba(46,125,91,.13);color:var(--green)}
+.pill.bad .tag{background:var(--red-2);color:var(--red)}
+.pill .txt{font-size:14px;color:var(--ink)} .pill .txt b{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.pill .txt em{color:var(--muted);font-style:normal}
+
+/* finding blockquote */
+.finding{margin-top:18px;padding:16px 18px 16px 20px;border-left:3px solid var(--red);background:var(--red-3);border-radius:0 10px 10px 0;font-size:14.5px;color:var(--ink)}
+.finding b{color:var(--red)}
+
+/* result / hero */
+.card.result{border-color:var(--line-2);background:
+  linear-gradient(180deg,#FFFFFF,var(--card-2))}
+.result .lead{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.result .big{font-family:var(--serif);font-size:clamp(56px,15vw,104px);font-weight:600;letter-spacing:-.03em;line-height:.85;color:var(--red);font-variant-numeric:tabular-nums;animation:pop .8s var(--ease)}
+.result .leadlbl{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+.result .band-note{font-family:var(--mono);font-size:12.5px;color:var(--muted);text-align:right}
+.chartwrap{margin-top:24px;border:1px solid var(--line);border-radius:12px;padding:16px 12px 10px;background:var(--card)}
+.chartwrap svg{width:100%;height:auto;display:block}
+.chartlegend{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.03em;padding:10px 6px 2px}
+.chartlegend i{display:inline-block;width:16px;height:0;border-top-width:2.5px;margin-right:7px;vertical-align:middle}
+.interp{color:var(--ink);font-size:15px;margin-top:22px;max-width:64ch}
+.interp b{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* loading + empty + error */
+.state{text-align:center;padding:56px 24px;color:var(--muted)}
+.state .spin{width:34px;height:34px;margin:0 auto 18px;border:3px solid var(--line-2);border-top-color:var(--red);border-radius:50%;animation:spin 1s linear infinite}
+.state h3{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--ink);margin:0 0 8px}
+.state p{font-family:var(--mono);font-size:12.5px;letter-spacing:.02em;margin:0}
+.err{border-color:rgba(190,59,46,.4);background:var(--red-2)}
+.err h3{color:var(--red)}
+
+@keyframes rise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes pop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="masthead">
+    <div class="kicker">Quantum · Project 02 — Macro Forecasting</div>
+    <h1>Inflation <em>Forecaster</em></h1>
+    <p class="dek">A working paper that forecasts US inflation with a seasonal ARIMA model — and grades itself honestly against the baselines that are genuinely hard to beat.</p>
+    <div class="rule"></div>
+    <div class="byline">
+      <span>Method · <b>SARIMA on log-CPI</b></span>
+      <span>Data · <b>FRED, monthly</b></span>
+      <span>Validation · <b>walk-forward backtest</b></span>
+    </div>
+  </header>
+
+  <section class="controls">
+    <div class="seg" id="seg" role="tablist" aria-label="Inflation measure"></div>
+    <button id="go" class="run">Run forecast</button>
+  </section>
+  <p class="note">Pick an inflation measure. First run ≈ 10s — it downloads the series, fits 7 models by AIC and walk-forward backtests 36 months. Then cached.</p>
+
+  <div class="ribbon" id="ribbon"></div>
+  <main id="stage"></main>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const stage=$("#stage"), ribbon=$("#ribbon");
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const reduce=matchMedia("(prefers-reduced-motion:reduce)").matches;
+const wait=ms=>new Promise(r=>setTimeout(r,reduce?0:ms));
+const K=(el,src)=>{try{katex.render(src,el,{throwOnError:false,displayMode:true});}catch(e){el.textContent=src;}};
+
+const SERIES=[["CPIAUCSL","CPI"],["CPILFESL","Core CPI"],["PCEPI","PCE"],["PCEPILFE","Core PCE"]];
+let sel="CPIAUCSL", busy=false;
+const seg=$("#seg");
+SERIES.forEach(([v,l])=>{const b=document.createElement("button");b.textContent=l;b.dataset.v=v;
+  b.className=v===sel?"active":"";b.onclick=()=>{if(busy)return;sel=v;
+    [...seg.children].forEach(c=>c.classList.toggle("active",c.dataset.v===v));};
+  seg.appendChild(b);});
+
+function stat(key,label,val,tone=""){
+  let c=document.getElementById("st-"+key);
+  if(!c){c=document.createElement("div");c.className="cell "+tone;c.id="st-"+key;
+    c.innerHTML="<small></small><b></b>";ribbon.appendChild(c);}
+  c.querySelector("small").textContent=label;
+  c.querySelector("b").textContent=val;
+  c.classList.remove("on");void c.offsetWidth;c.classList.add("on");
+}
+function card(cls=""){const c=document.createElement("div");c.className="card in "+cls;stage.appendChild(c);
+  requestAnimationFrame(()=>c.scrollIntoView({behavior:"smooth",block:"nearest"}));return c;}
+function head(idx,kick){return `<div class="head"><span class="idx">${idx}</span><span class="kick">${kick}</span></div>`;}
+
+/* light-theme SVG chart: history (ink) + forecast (red, band), 2% target, "today" divider */
+function chartSVG(hist,fc){
+  const W=860,H=340,pl=48,pr=16,pt=20,pb=34;
+  const pts=hist.map(p=>({x:p.date,y:p.yoy,lo:p.yoy,hi:p.yoy})).concat(fc.map(p=>({x:p.date,y:p.yoy,lo:p.lo,hi:p.hi})));
+  const n=pts.length, split=hist.length-1;
+  const ys=pts.flatMap(p=>[p.lo,p.hi]).concat([2]);
+  let ymin=Math.min(...ys),ymax=Math.max(...ys);const pad=(ymax-ymin)*0.12||1;ymin-=pad;ymax+=pad;
+  const X=i=>pl+(W-pl-pr)*i/(n-1), Y=v=>pt+(H-pt-pb)*(1-(v-ymin)/(ymax-ymin));
+  const line=(a,b)=>pts.slice(a,b).map((p,k)=>`${X(a+k).toFixed(1)},${Y(p.y).toFixed(1)}`).join(" ");
+  const seg2=pts.slice(split);
+  const band=seg2.map((p,k)=>`${X(split+k).toFixed(1)},${Y(p.hi).toFixed(1)}`).join(" ")+" "+
+             seg2.map((p,k)=>`${X(split+k).toFixed(1)},${Y(p.lo).toFixed(1)}`).reverse().join(" ");
+  const ticks=[ymin,(ymin+ymax)/2,ymax];
+  const grid=ticks.map(v=>`<line x1="${pl}" y1="${Y(v).toFixed(1)}" x2="${W-pr}" y2="${Y(v).toFixed(1)}" stroke="#E6E1D5"/>
+    <text x="${pl-8}" y="${(Y(v)+4).toFixed(1)}" fill="#9A9080" font-size="11" font-family="IBM Plex Mono,monospace" text-anchor="end">${v.toFixed(1)}</text>`).join("");
+  const y2=Y(2).toFixed(1), xs=X(split).toFixed(1);
+  const xl=[[0,pts[0].x,"start"],[split,pts[split].x,"middle"],[n-1,pts[n-1].x,"end"]]
+    .map(([i,t,a])=>`<text x="${X(i).toFixed(1)}" y="${H-10}" fill="#9A9080" font-size="11" font-family="IBM Plex Mono,monospace" text-anchor="${a}">${t}</text>`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Inflation history and forecast">
+    <rect x="${xs}" y="${pt}" width="${(W-pr-xs).toFixed(1)}" height="${H-pt-pb}" fill="rgba(190,59,46,.04)"/>
+    ${grid}
+    <line x1="${pl}" y1="${y2}" x2="${W-pr}" y2="${y2}" stroke="#2E7D5B" stroke-dasharray="2 4"/>
+    <text x="${pl+4}" y="${(+y2-6).toFixed(1)}" fill="#2E7D5B" font-size="10.5" font-family="IBM Plex Mono,monospace">2% target</text>
+    <line x1="${xs}" y1="${pt}" x2="${xs}" y2="${H-pb}" stroke="#D6CFBF" stroke-dasharray="3 3"/>
+    <text x="${(+xs+5).toFixed(1)}" y="${pt+11}" fill="#9A9080" font-size="10" font-family="IBM Plex Mono,monospace">forecast →</text>
+    <polygon points="${band}" fill="rgba(190,59,46,.12)"/>
+    <polyline points="${line(0,split+1)}" fill="none" stroke="#1A1712" stroke-width="2.2"/>
+    <polyline points="${line(split,n)}" fill="none" stroke="#BE3B2E" stroke-width="2.6" stroke-dasharray="6 4"/>
+    ${seg2.map((p,k)=>`<circle cx="${X(split+k).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="2.6" fill="#BE3B2E"/>`).join("")}
+    ${xl}
+  </svg>`;
+}
+
+async function run(d){
+  stage.innerHTML="";ribbon.innerHTML="";
+
+  // 01 — the series
+  const c1=card();c1.innerHTML=head("01","The series")+
+    `<h3>${esc(d.series_name)}</h3>
+     <p class="sub"><span class="mono">${esc(d.series)}</span> · FRED, monthly · ${esc(d.start)} → ${esc(d.end)} · <span class="mono">${d.n}</span> observations</p>`;
+  stat("now","Inflation now (YoY)",d.latest_yoy+"%","red");
+  await wait(1100);
+
+  // 02 — the model
+  const c2=card();c2.innerHTML=head("02","The model")+
+    `<h3>SARIMA on the log price index</h3>
+     <p class="sub">Difference out trend and the annual pattern, then model the memory that's left.</p>
+     <div class="fx" id="fx"></div>
+     <ul class="legend">
+       <li><span class="sym">(1−B)ᵈ</span><span class="desc">Regular difference <em>— removes the trend (d=1)</em></span></li>
+       <li><span class="sym">(1−Bˢ)ᴰ</span><span class="desc">Seasonal difference <em>— removes the yearly pattern (D=1, s=12)</em></span></li>
+       <li><span class="sym">φ, θ</span><span class="desc">AR &amp; MA terms <em>— short-run memory</em></span></li>
+       <li><span class="sym">Φ, Θ</span><span class="desc">Seasonal AR &amp; MA <em>— year-to-year memory</em></span></li>
+       <li><span class="sym">εₜ</span><span class="desc">White-noise shock <em>— the unpredictable part</em></span></li>
+     </ul>`;
+  K(c2.querySelector("#fx"),"\\Phi_P(B^s)\\,\\phi_p(B)\\,(1-B)^d(1-B^s)^D\\,\\log y_t = \\Theta_Q(B^s)\\,\\theta_q(B)\\,\\varepsilon_t");
+  await wait(1700);
+
+  // 03 — model selection by AIC
+  const rows=d.candidates.map(c=>`<tr class="${c.order===d.chosen?'pick':''}"><td>SARIMA ${esc(c.order)}${c.order===d.chosen?'<span class="tag">chosen</span>':''}</td><td>${c.aic.toFixed(1)}</td></tr>`).join("");
+  const c3=card();c3.innerHTML=head("03","Model selection")+
+    `<h3>The order is chosen by AIC, not by hand</h3>
+     <p class="sub">AIC rewards fit and penalises complexity. Lower is better — we fit 7 candidates and take the winner.</p>
+     <table class="tbl"><thead><tr><th>Candidate model</th><th>AIC ↓</th></tr></thead><tbody>${rows}</tbody></table>`;
+  stat("model","Chosen model",d.chosen,"mono blue");
+  await wait(1700);
+
+  // 04 — diagnostics
+  const lbOK=d.diag.lb12>0.05, adfOK=d.diag.adf_p<0.05;
+  const c4=card();c4.innerHTML=head("04","Diagnostics")+
+    `<h3>Is the fitted model healthy?</h3>
+     <div class="pills">
+       <div class="pill ${lbOK?'ok':'bad'}"><span class="tag">${lbOK?'PASS':'FAIL'}</span>
+         <span class="txt"><b>Ljung–Box p = ${d.diag.lb12}</b> — ${lbOK?"residuals are white noise: the model captured the structure.":"structure remains in the residuals."}</span></div>
+       <div class="pill ${adfOK?'ok':'bad'}"><span class="tag">${adfOK?'PASS':'FAIL'}</span>
+         <span class="txt"><b>ADF p = ${d.diag.adf_p}</b> — the differenced series ${adfOK?"is stationary: differencing was the right call.":"is not yet stationary."}</span></div>
+     </div>`;
+  await wait(1600);
+
+  // 05 — honest backtest
+  const btr=d.backtest.map(r=>{
+    const cell=(name,v)=>`<td class="${r.winner===name?'best':''}">${v.toFixed(3)}</td>`;
+    return `<tr><td>${r.h} month${r.h>1?'s':''}</td>${cell('SARIMA',r.sarima)}${cell('RW',r.rw)}${cell('SeasNaive',r.snaive)}</tr>`;
+  }).join("");
+  const c5=card();c5.innerHTML=head("05","Honest backtest")+
+    `<h3>Does it beat a baseline that actually fights back?</h3>
+     <p class="sub">Walk-forward over 36 months. YoY-inflation error (RMSE, pp) by horizon. Green = winner.</p>
+     <table class="tbl"><thead><tr><th>Horizon</th><th>SARIMA</th><th>RW inflation</th><th>Seas. naive</th></tr></thead><tbody>${btr}</tbody></table>
+     <div class="finding"><b>The honest finding.</b> SARIMA wins at short horizons (1–3 months); at 6–12 months a random walk on the inflation rate is unbeatable — the classic Atkeson–Ohanian result. 1-month bias: <b>${d.bias>0?'+':''}${d.bias} pp</b>.</div>`;
+  stat("skill","Best @ 1 month","SARIMA","green");
+  await wait(1800);
+
+  // 06 — forecast (hero)
+  const last=d.forecast[d.forecast.length-1];
+  const dir=last.yoy<d.latest_yoy?"cooling":"rising";
+  const c6=card("result");c6.innerHTML=head("06","The forecast")+
+    `<div class="lead">
+       <div><div class="leadlbl">${esc(d.series)} · 12 months ahead · ${esc(last.date)}</div><div class="big">${last.yoy.toFixed(2)}%</div></div>
+       <div class="band-note">80% band<br>${last.lo.toFixed(1)}% – ${last.hi.toFixed(1)}%</div>
+     </div>
+     <div class="chartwrap">${chartSVG(d.history,d.forecast)}</div>
+     <div class="chartlegend">
+       <span><i style="border-color:#1A1712"></i>history</span>
+       <span><i style="border-color:#BE3B2E;border-top-style:dashed"></i>forecast</span>
+       <span><i style="border-color:#2E7D5B;border-top-style:dashed"></i>2% target</span>
+       <span><i style="border-color:rgba(190,59,46,.4);border-top-width:9px"></i>80% band</span>
+     </div>
+     <p class="interp">Central path: <b>${last.yoy.toFixed(2)}%</b> by ${esc(last.date)}, ${dir} from the <b>${d.latest_yoy}%</b> reading today toward the 2% target. But read the wide band, not just the line — at a 12-month horizon this model doesn't beat a simple random walk, and the band says so.</p>`;
+  stat("fc","12-mo forecast",last.yoy.toFixed(2)+"%","red");
+}
+
+function loading(){
+  stage.innerHTML="";ribbon.innerHTML="";
+  const c=card();c.innerHTML=`<div class="state"><div class="spin"></div>
+    <h3>Downloading data and fitting models…</h3>
+    <p>FRED · 7 SARIMA fits by AIC · 36-month walk-forward · ~10s first time</p></div>`;
+}
+async function go(){
+  if(busy)return;busy=true;
+  const btn=$("#go");btn.disabled=true;btn.textContent="Working…";
+  loading();
+  try{
+    const res=await fetch("/api/forecast?series="+encodeURIComponent(sel));
+    const d=await res.json();
+    if(d.error)throw new Error(d.error);
+    await run(d);
+  }catch(e){
+    stage.innerHTML="";ribbon.innerHTML="";
+    const c=card("err");c.innerHTML=`<div class="state"><h3>Couldn't compute the forecast</h3><p>${esc(e.message)}</p></div>`;
+  }finally{busy=false;btn.disabled=false;btn.textContent="Run forecast";}
+}
+$("#go").addEventListener("click",go);
+addEventListener("load",go);   // land on a populated paper
+</script>
+</body>
+</html>

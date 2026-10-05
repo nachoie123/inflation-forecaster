@@ -4,137 +4,647 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Inflation Forecaster</title>
-<meta name="description" content="Forecasting US CPI inflation with a seasonal ARIMA model, backtested honestly against the baselines that are hard to beat.">
-<meta property="og:title" content="Inflation Forecaster — a macro working paper">
-<meta property="og:description" content="SARIMA on 79 years of US CPI, walk-forward backtest over 36 months, and an honest result: it wins at 1 month, a random walk wins after that.">
+<meta name="description" content="A seasonal ARIMA model on 79 years of US CPI, backtested month by month against forecasts that need no model. It wins one month ahead and loses from three months on.">
+<meta property="og:title" content="Inflation Forecaster">
+<meta property="og:description" content="SARIMA on 79 years of US CPI, a 36-month walk-forward backtest and an honest result: it wins at 1 month, a random walk wins after that.">
 <meta property="og:image" content="https://nachosanbenito.com/inflation-forecaster/poster.jpg">
-<meta name="theme-color" content="#F4F1EA">
+<meta name="theme-color" content="#002147">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%224%22 fill=%22%23002147%22/%3E%3Cpath d=%22M5 22l6-5 5 3 11-11%22 fill=%22none%22 stroke=%22%23ce261e%22 stroke-width=%223%22/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<script>document.documentElement.classList.add('js')</script>
 <style>
-  :root{--bg:#F4F1EA;--surface:#fff;--text:#1A1712;--muted:#6E665A;--faint:#9A9080;--border:#E0DACB;--blue:#1C4A63;--red:#BE3B2E;--green:#2E7D5B;--soft:#FBF3F1;
-    --serif:"Fraunces",Georgia,serif;--sans:"Inter",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace}
-  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15130F;--surface:#1E1B16;--text:#F1EDE3;--muted:#A89F8F;--faint:#7C7466;--border:#2E2A22;--blue:#7FB2CE;--red:#E5685A;--green:#58B88C;--soft:#2A1F1D}}
-  :root[data-theme="dark"]{--bg:#15130F;--surface:#1E1B16;--text:#F1EDE3;--muted:#A89F8F;--faint:#7C7466;--border:#2E2A22;--blue:#7FB2CE;--red:#E5685A;--green:#58B88C;--soft:#2A1F1D}
+  :root{
+    --bg:#fff;--panel:#f7f9fc;--ink:#1d3d63;--text:#2b3440;--muted:#5b5b5b;--faint:#858585;--line:#e4e8ee;--grid:#dfe3e8;--frame:#e9ecf0;
+    --bar:#002147;--rule:#ce261e;--red:#ce261e;
+    --act:#1d3d63;--sar:#b13507;--rw:#4c6a9c;--sn:#996d39;--cone:rgb(177 53 7 / .14);
+    --tab:#dbe5f0;--knob:#a1a1a1;
+    --serif:"Playfair Display",Georgia,"Times New Roman",serif;--sans:Lato,"Helvetica Neue",Helvetica,Arial,sans-serif;
+    --r:4px;--ease:cubic-bezier(.23,1,.32,1)
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0e1520;--panel:#131d2b;--ink:#e8eef7;--text:#cfd8e3;--muted:#a3adbb;--faint:#7f8a99;--line:#233042;--grid:#26354a;--frame:#223044;
+    --act:#e8eef7;--sar:#f08a5d;--rw:#8fa8d6;--sn:#c9a06a;--cone:rgb(240 138 93 / .16);--tab:#24364f;--knob:#7f8a99}}
+  :root[data-theme="dark"]{
+    --bg:#0e1520;--panel:#131d2b;--ink:#e8eef7;--text:#cfd8e3;--muted:#a3adbb;--faint:#7f8a99;--line:#233042;--grid:#26354a;--frame:#223044;
+    --act:#e8eef7;--sar:#f08a5d;--rw:#8fa8d6;--sn:#c9a06a;--cone:rgb(240 138 93 / .16);--tab:#24364f;--knob:#7f8a99}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1040px;margin:0 auto;padding:40px 16px 72px}
-  .video video{width:100%;display:block;border-radius:14px;background:#000;border:1px solid var(--border);box-shadow:0 30px 70px -40px rgb(26 23 18 / .5)}
-  .intro{max-width:700px;margin:56px auto 0;text-align:center}
-  .kicker{font:500 12px var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--red)}
-  h1{font:600 clamp(42px,7vw,76px)/1 var(--serif);letter-spacing:-.02em;margin:16px 0 18px}
-  h1 em{font-style:italic;font-weight:500;color:var(--blue)}
-  .lead{color:var(--muted);font-size:18px;margin:0 auto}
-  .cta{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:28px 0 10px}
-  .btn{display:inline-flex;align-items:center;gap:8px;padding:13px 22px;border-radius:11px;font-weight:600;text-decoration:none;border:1px solid var(--border);color:var(--text);background:var(--surface)}
-  .btn.main{background:var(--red);border-color:var(--red);color:#fff;box-shadow:0 10px 24px -12px rgb(190 59 46 / .7)}
-  .small{color:var(--muted);font:400 13px var(--mono);margin:12px 0 0}
-  h2{font:600 clamp(26px,4vw,34px)/1.15 var(--serif);letter-spacing:-.01em;margin:72px 0 8px}
-  h2+p{color:var(--muted);margin:0 0 20px;max-width:64ch}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
-  .grid b{display:block;margin-bottom:6px}
-  .grid p{margin:0;color:var(--muted);font-size:15px}
-  .num{font:600 40px/1 var(--serif);color:var(--red);font-variant-numeric:tabular-nums}
-  .num+span{display:block;margin-top:8px;font:400 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
-  figure{margin:0}
-  figure img{width:100%;height:auto;display:block;border-radius:14px;border:1px solid var(--border)}
-  figcaption{color:var(--muted);font-size:14px;margin-top:10px}
-  .two{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
-  @media (max-width:760px){.two{grid-template-columns:1fr}}
-  .scroll{overflow-x:auto}
-  table{width:100%;border-collapse:collapse;font:400 15px var(--mono);font-variant-numeric:tabular-nums;min-width:440px}
-  th{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);text-align:right;padding:8px 10px;border-bottom:1px solid var(--border)}
-  td{text-align:right;padding:12px 10px;border-bottom:1px solid var(--border)}
-  th:first-child,td:first-child{text-align:left}
-  td.w{color:var(--green);font-weight:500}
-  .finding{margin-top:16px;background:var(--soft);border-left:4px solid var(--red);border-radius:8px;padding:16px 20px}
-  pre{margin:0;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;overflow-x:auto;font:400 14px/1.7 var(--mono)}
-  footer{margin-top:64px;color:var(--muted);font-size:14px;text-align:center}
-  footer a{color:inherit}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font:17px/1.6 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  a{color:var(--ink)}
+  :focus-visible{outline:2px solid var(--rule);outline-offset:3px}
+  h1,h2,h3{font-family:var(--serif);color:var(--ink);font-weight:600;margin:0;text-wrap:balance;letter-spacing:-.005em}
+  p{text-wrap:pretty}
+  .wrap{max-width:1232px;margin-inline:auto;padding-inline:24px}
+  .num{font-variant-numeric:tabular-nums lining-nums}
 
-  /* design pass (ui-ux-pro-max + apple-design): wayfinding bar, press feedback, wrapping */
-  html{scroll-padding-top:84px}
-  @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
-  .top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px max(16px,calc((100% - 1008px)/2));background:color-mix(in srgb,var(--bg) 74%,transparent);-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);border-bottom:1px solid var(--border)}
-  @supports (animation-timeline:scroll()){.top{border-bottom-color:transparent;animation:edge linear both;animation-timeline:scroll();animation-range:0 48px}}
-  @keyframes edge{to{border-bottom-color:var(--border)}}
-  @media (prefers-reduced-transparency:reduce){.top{background:var(--bg);-webkit-backdrop-filter:none;backdrop-filter:none}}
-  .top a{min-height:44px;display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:15px;font-weight:500;text-decoration:none;transition:color .2s}
-  .top a:hover{color:var(--text)}
-  .top .btn{padding:0 18px;font-size:15px}
-  .btn{transition:transform .12s ease-out,filter .2s,border-color .2s;-webkit-tap-highlight-color:transparent}
-  .btn:hover{filter:brightness(1.07)}
-  .btn:not(.main):hover{border-color:var(--red)}
-  .btn:active{transform:scale(.97);transition-duration:.06s}
-  a:focus-visible{outline:2px solid var(--red);outline-offset:3px;border-radius:8px}
-  h1,h2{text-wrap:balance}
-  p,li,figcaption{text-wrap:pretty}
-  .grid.g3{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
-  .stats4{grid-template-columns:repeat(4,1fr)}
-  @media (max-width:640px){.stats4{grid-template-columns:repeat(2,1fr)}}
+  /* top bar: OWID navy with the red rule */
+  .top{background:var(--bar);border-bottom:4px solid var(--rule)}
+  .top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;height:64px}
+  .top a{color:#fff;text-decoration:none;font-weight:700;font-size:15px;display:inline-flex;align-items:center;gap:8px;min-height:44px}
+  .top a.back{font-weight:400;opacity:.9}
+  .top a.back:hover{opacity:1;text-decoration:underline;text-underline-offset:4px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border-radius:var(--r);font:700 15px var(--sans);text-decoration:none;border:1px solid transparent;cursor:pointer;transition:background-color .15s,border-color .15s,transform .1s}
+  .btn:active{transform:scale(.98)}
+  .btn.red{background:var(--red);color:#fff}
+  .btn.red:hover{background:#b01f18}
+  .btn.line{border-color:var(--line);color:var(--ink);background:var(--bg)}
+  .btn.line:hover{border-color:var(--ink)}
+  .btn svg{width:18px;height:18px}
+
+  /* hero */
+  .hero{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:44px;align-items:center;padding-block:40px}
+  .eyebrow{font:700 13px/1.3 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+  h1{font-size:clamp(32px,3.2vw,41px);line-height:1.14}
+  .sub{font-size:18px;color:var(--text);margin:18px 0 26px;max-width:34ch}
+  .ctas{display:flex;flex-wrap:wrap;gap:10px}
+
+  /* the chart card, OWID grapher style */
+  .card{background:var(--bg);border:1px solid var(--frame);border-radius:var(--r);box-shadow:0 1px 2px rgb(0 33 71 / .04),0 10px 30px -18px rgb(0 33 71 / .18);padding:20px 22px 14px}
+  .card h2.ct{font-size:22px;line-height:1.25}
+  .card .cs{font-size:15px;color:var(--muted);margin:6px 0 0;line-height:1.4}
+  .chart{position:relative;margin-top:10px;touch-action:pan-y}
+  .chart svg{display:block;width:100%;overflow:visible}
+  .chart text{font-family:var(--sans);font-variant-numeric:tabular-nums;paint-order:stroke;stroke:var(--bg);stroke-width:3px;stroke-linejoin:round}
+  .src{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--faint);border-top:1px solid var(--line);margin-top:12px;padding-top:10px;line-height:1.5}
+  .src b{font-weight:700;color:var(--muted)}
+  .tip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--frame);border-radius:var(--r);box-shadow:0 4px 18px rgb(0 0 0 / .14);padding:8px 10px;font-size:13px;line-height:1.45;color:var(--text);white-space:nowrap;opacity:0;transition:opacity .12s;z-index:2}
+  .tip b{display:block;font-family:var(--serif);font-weight:600;color:var(--ink);font-size:14px;margin-bottom:2px}
+  .tip i{font-style:normal;display:inline-block;width:10px;height:3px;border-radius:2px;margin:0 6px 3px 0;vertical-align:middle}
+
+  /* timeline: play + two-handle slider */
+  .tl{display:grid;grid-template-columns:36px auto 1fr auto;align-items:center;gap:12px;margin-top:8px}
+  .tl .pp{width:36px;height:36px;border:0;border-radius:var(--r);background:var(--panel);color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:background-color .15s,color .15s}
+  .tl .pp:hover{background:var(--tab);color:var(--ink)}
+  .tl .pp svg{width:14px;height:14px}
+  .tl .yr{font-size:14px;color:var(--muted);min-width:66px}
+  .tl .yr:last-child{text-align:right}
+  .rng{position:relative;height:36px}
+  .rng .trk{position:absolute;left:8px;right:8px;top:17px;height:2px;background:var(--grid);border-radius:2px}
+  .rng .sel{position:absolute;top:17px;height:2px;background:var(--knob)}
+  .rng input{position:absolute;inset:0;width:100%;height:36px;margin:0;background:none;pointer-events:none;-webkit-appearance:none;appearance:none}
+  .rng input::-webkit-slider-runnable-track{background:none;height:36px}
+  .rng input::-moz-range-track{background:none}
+  .rng input::-webkit-slider-thumb{-webkit-appearance:none;pointer-events:auto;width:18px;height:18px;margin-top:9px;border-radius:50%;background:var(--knob);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--knob);cursor:grab}
+  .rng input::-moz-range-thumb{pointer-events:auto;width:16px;height:16px;border-radius:50%;background:var(--knob);border:2px solid var(--bg);cursor:grab}
+  .rng input:focus-visible{outline:none}
+  .rng input:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 2px var(--rule)}
+  .rng input:focus-visible::-moz-range-thumb{box-shadow:0 0 0 2px var(--rule)}
+
+  /* film */
+  section.wrap{padding-block:48px}
+  .film{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,330px);gap:44px;align-items:center}
+  section.wrap.film{padding-top:12px;padding-bottom:40px}
+  h2.sh{font-size:clamp(28px,3vw,38px);line-height:1.15}
+  .lead{font-size:18px;margin:14px 0 0;max-width:62ch}
+  .promo{position:relative;margin:0}
+  .promo video{display:block;width:100%;aspect-ratio:16/9;height:auto;border-radius:var(--r);background:#0b1220;border:1px solid var(--frame)}
+  .play{position:absolute;left:0;top:0;width:100%;aspect-ratio:16/9;display:grid;place-items:center;padding:0;border:0;border-radius:var(--r);background:linear-gradient(rgb(0 20 45 / 0) 72%,rgb(0 20 45 / .38));color:#fff;font-family:inherit;cursor:pointer}
+  .play i{display:grid;place-items:center;width:84px;height:58px;border-radius:16px;background:rgb(23 23 23 / .82);box-shadow:0 6px 24px rgb(0 0 0 / .4)}
+  .play i svg{width:26px;height:26px;margin-left:2px}
+  .play span{position:absolute;left:18px;bottom:16px;font-size:15px;font-weight:700;text-shadow:0 1px 8px rgb(0 0 0 / .6)}
+  .play small{position:absolute;right:14px;bottom:14px;padding:3px 7px;border-radius:6px;background:rgb(0 0 0 / .78);color:#fff;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+  .play:hover i,.play:focus-visible i{background:#ff0033}
+  html:not(.js) .play{display:none}
+  @media (prefers-reduced-motion:no-preference){.play i{transition:transform .25s var(--ease),background-color .15s}.play:hover i{transform:scale(1.06)}}
+  .covers{list-style:none;padding:0;margin:20px 0 0;border-top:1px solid var(--line)}
+  .covers li{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+  .covers li span{color:var(--muted)}
+
+  /* method */
+  .mhead{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,400px);gap:48px;align-items:end}
+  .pi{border-left:3px solid var(--rule);padding:6px 0 6px 22px}
+  .pi span{font-size:14px;color:var(--muted)}
+  .pi .f{font:600 25px/1.4 var(--serif);color:var(--ink);margin:4px 0}
+  .pi .f sub{font-size:.6em}
+  .pi small{font-size:14px;color:var(--muted)}
+  .eq{margin:32px 0 0;padding:34px 24px 28px;background:var(--panel);border-radius:var(--r);text-align:center}
+  .eq .f{font:600 clamp(19px,2.5vw,30px)/1.5 var(--serif);color:var(--ink);font-variant-numeric:lining-nums}
+  .eq .f sub,.eq .f sup{font-size:.6em;line-height:0}
+  .eq br.m{display:none}
+  .eq .cap{font-size:14px;color:var(--muted);margin:12px auto 0;max-width:70ch}
+  .terms{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 28px;margin:0;padding:0}
+  .terms div{border-top:2px solid var(--ink);padding:14px 0 0;margin-top:24px}
+  .terms dt{font:600 20px/1.2 var(--serif);color:var(--ink)}
+  .terms dd{margin:6px 0 0;font-size:15px;color:var(--text)}
+  .duo{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:24px;margin-top:36px;align-items:stretch}
+  .aic{list-style:none;margin:14px 0 0;padding:0}
+  .aic li{display:grid;grid-template-columns:150px 1fr 64px;align-items:center;gap:12px;padding:6px 0;font-size:14px}
+  .aic .o{font-variant-numeric:tabular-nums;color:var(--text)}
+  .aic .b{height:14px;background:var(--panel);border-radius:2px;position:relative;overflow:hidden}
+  .aic .b span{position:absolute;left:0;top:0;bottom:0;background:var(--rw);border-radius:2px}
+  .aic .b span.cut{right:0;background:repeating-linear-gradient(110deg,var(--rw) 0 10px,transparent 10px 13px)}
+  .aic .v{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+  .aic li.win .o,.aic li.win .v{color:var(--sar);font-weight:700}
+  .aic li.win .b{background:none}
+  .aic li.win .b::before{content:"winner, ΔAIC 0";position:absolute;left:0;top:-2px;font-size:12px;color:var(--sar);font-weight:700}
+  .dg{width:100%;border-collapse:collapse;margin-top:12px;font-size:15px}
+  .dg td{padding:11px 0;border-bottom:1px solid var(--line);vertical-align:top}
+  .dg td:last-child{text-align:right;font-weight:700;color:var(--ink);white-space:nowrap;padding-left:12px}
+  .dg small{display:block;color:var(--muted);font-size:13px}
+
+  /* race */
+  .tabs{display:inline-flex;border:1px solid var(--frame);border-radius:var(--r);overflow:hidden;margin-top:14px}
+  .tabs button{border:0;background:var(--bg);color:var(--muted);font:400 15px var(--sans);padding:0 14px;min-height:40px;cursor:pointer;border-right:1px solid var(--frame);transition:background-color .15s,color .15s}
+  .tabs button:last-child{border-right:0}
+  .tabs button:hover{color:var(--ink)}
+  .tabs button[aria-pressed="true"]{background:var(--tab);color:var(--ink);font-weight:700}
+  .leg{display:none;flex-wrap:wrap;gap:4px 14px;margin:12px 0 0;font-size:13px;color:var(--text)}
+  .leg i{display:inline-block;width:12px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  .race{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:28px;align-items:start}
+  .bars{padding-top:18px}
+  .bars h3{font:700 13px/1.3 var(--sans);color:var(--muted);margin:0 0 4px}
+  .bars .bx{position:relative;height:168px}
+  .brow{position:absolute;left:0;right:0;height:48px;will-change:transform}
+  .brow .nm{font-size:14px;color:var(--text);display:flex;justify-content:space-between}
+  .brow .nm b{font-variant-numeric:tabular-nums}
+  .brow .tr{height:16px;margin-top:4px;background:var(--panel);border-radius:2px;overflow:hidden}
+  .brow .tr span{display:block;height:100%;border-radius:2px;transform-origin:left;width:100%}
+  .brow .tr span.cut{-webkit-mask:linear-gradient(90deg,#000 calc(100% - 22px),transparent calc(100% - 22px),transparent calc(100% - 18px),#000 calc(100% - 18px),#000 calc(100% - 10px),transparent calc(100% - 10px),transparent calc(100% - 6px),#000 calc(100% - 6px));mask:linear-gradient(90deg,#000 calc(100% - 22px),transparent calc(100% - 22px),transparent calc(100% - 18px),#000 calc(100% - 18px),#000 calc(100% - 10px),transparent calc(100% - 10px),transparent calc(100% - 6px),#000 calc(100% - 6px))}
+  .brow.lead .nm span::after{content:"  leads";color:var(--faint);font-size:12px}
+  .verdict{margin-top:6px;font-size:15px;color:var(--text);min-height:3em}
+  .verdict b{color:var(--ink)}
+  .stand{width:100%;border-collapse:collapse;margin-top:28px;font-size:15px;font-variant-numeric:tabular-nums}
+  .stand th{font:700 13px var(--sans);color:var(--muted);text-align:right;padding:8px 10px;border-bottom:1px solid var(--frame)}
+  .stand td{text-align:right;padding:11px 10px;border-bottom:1px solid var(--line)}
+  .stand th:first-child,.stand td:first-child{text-align:left;padding-left:0}
+  .stand td.w{color:var(--ink);font-weight:700;background:var(--panel)}
+  .stand td small{color:var(--faint);font-size:12px}
+  .fnd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,440px);gap:48px;align-items:start;margin-top:28px}
+  .finding{margin:0;font-size:18px;max-width:62ch}
+  .big{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .big div{border-top:2px solid var(--ink);padding-top:12px}
+  .big strong{display:block;font:600 42px/1 var(--serif);color:var(--sar)}
+  .big span{display:block;font-size:14px;color:var(--muted);margin-top:8px}
+  .finding b{color:var(--ink)}
+
+  /* limits */
+  .limits{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 48px;margin-top:20px}
+  .limits div{padding:18px 0;border-top:1px solid var(--line)}
+  .limits div.key{border-top:2px solid var(--sar);padding:20px 0 26px}
+  .limits div.key strong{display:block;font:600 46px/1 var(--serif);color:var(--sar);margin-bottom:10px}
+  .limits div.key h3{font-size:23px}
+  .limits div:not(.key) h3{font-size:18px}
+  .limits div:not(.key) p{font-size:15px}
+  .limits h3{font-size:20px;line-height:1.3}
+  .limits p{margin:6px 0 0;font-size:16px}
+
+  /* run */
+  .run{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:40px;align-items:end}
+  .run pre{margin-top:0}
+  pre{margin:20px 0 0;background:#0e1a2b;color:#e6edf6;border-radius:var(--r);padding:18px 20px;overflow-x:auto;font:400 14px/1.75 ui-monospace,SFMono-Regular,Menlo,monospace}
+  pre .c{color:#8ea2bb}
+  .run figure{margin:0}
+  .run img{display:block;width:100%;height:auto;border-radius:var(--r);border:1px solid var(--frame)}
+  .run figcaption{font-size:13px;color:var(--faint);margin-top:8px}
+
+  footer{border-top:4px solid var(--rule);background:var(--bar);color:#c9d3e0;margin-top:24px}
+  footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding-top:22px;padding-bottom:22px;font-size:15px}
+  footer a{color:#fff}
+
+  @media (max-width:1024px){
+    .hero{grid-template-columns:minmax(0,1fr);gap:26px;padding-top:28px}
+    h1{max-width:20ch}
+    .sub{max-width:52ch}
+    .film{grid-template-columns:minmax(0,1fr);gap:20px}
+    .terms{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .duo,.race,.run,.mhead,.fnd{grid-template-columns:minmax(0,1fr)}
+    .mhead,.fnd{gap:24px}
+  }
+  @media (max-width:640px){
+    body{font-size:16px}
+    .wrap{padding-inline:16px}
+    .top .wrap{height:56px}
+    section.wrap{padding-block:44px}
+    .card{padding:16px 14px 12px;margin:0 -4px}
+    .card h2.ct{font-size:19px}
+    .card .cs{font-size:14px}
+    .tl{grid-template-columns:36px auto 1fr auto;gap:8px}
+    .tl .yr{font-size:12px;min-width:0}
+    .terms{grid-template-columns:1fr}
+    .limits{grid-template-columns:1fr}
+    .aic li{grid-template-columns:128px 1fr 52px;gap:8px;font-size:13px}
+    .play i{width:68px;height:48px;border-radius:12px}.play i svg{width:22px;height:22px}
+    .play span{left:12px;bottom:10px;font-size:13px}.play small{right:10px;bottom:10px}
+    .tabs button{padding:0 10px;font-size:14px}
+    .stand{font-size:14px}
+    .stand th,.stand td{padding-left:6px;padding-right:6px}
+    .eq{padding:24px 12px 20px}
+    .eq br.m{display:inline}
+    .stand td small{display:none}
+    .leg{display:flex}
+    .big strong{font-size:34px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
-<header class="top"><a href="https://nachosanbenito.com/#work"><span aria-hidden="true">←</span> nachosanbenito.com</a><a class="btn main" href="https://github.com/nachoie123/inflation-forecaster">GitHub</a></header>
-<main class="wrap">
-  <div class="video"><video src="inflation-promo.mp4" poster="poster.jpg" controls playsinline preload="metadata"></video></div>
+<header class="top">
+  <div class="wrap">
+    <a class="back" href="https://nachosanbenito.com/#work"><span aria-hidden="true">←</span> nachosanbenito.com</a>
+    <a class="btn red" href="https://github.com/nachoie123/inflation-forecaster">GitHub</a>
+  </div>
+</header>
 
-  <section class="intro">
-    <div class="kicker">Quantum · Project 02 · Macro forecasting</div>
-    <h1>Inflation <em>Forecaster</em></h1>
-    <p class="lead">Forecasting US consumer-price inflation with a seasonal ARIMA model, then checking it against the baselines that are genuinely hard to beat. The point isn't nailing the number. It's showing the process, honestly.</p>
-    <div class="cta">
-      <a class="btn main" href="https://github.com/nachoie123/inflation-forecaster">View on GitHub</a>
+<main>
+  <div class="wrap hero">
+    <div>
+      <p class="eyebrow">Inflation Forecaster</p>
+      <h1>Beats a random walk one month ahead. Loses after that.</h1>
+      <p class="sub">A seasonal ARIMA model on 79 years of US prices, tested month by month against forecasts that need no model.</p>
+      <div class="ctas">
+        <a class="btn red" href="#film"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5Z"/></svg>Watch the film</a>
+        <a class="btn line" href="https://github.com/nachoie123/inflation-forecaster">Code on GitHub</a>
+      </div>
     </div>
-    <p class="small">Python · statsmodels · stdlib web UI · MIT · data: FRED, no API key</p>
+
+    <figure class="card" id="cpi" style="margin:0">
+      <h2 class="ct">US inflation since 1948, and the model's next 12 months</h2>
+      <p class="cs">Year-on-year change in consumer prices, %. Shaded: the 80% band of the SARIMA forecast. Dotted: the Fed's 2% target. Press play or drag the handles to travel back to 1948.</p>
+      <div class="chart"><svg id="c1" height="360" role="img" aria-label="Line chart of US year-on-year CPI inflation from 1948 to August 2026 (3.71%), with a 12-month SARIMA forecast to August 2027 (3.39%, 80% band 0.84% to 6.01%)."></svg><div class="tip" id="t1"></div></div>
+      <div class="tl">
+        <button class="pp" id="p1" type="button" aria-label="Play the timeline"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9.5-5.5z"/></svg></button>
+        <span class="yr num" id="y1a">1948</span>
+        <div class="rng"><div class="trk"></div><div class="sel" id="sel1"></div>
+          <input type="range" id="r1a" min="0" max="943" value="0" aria-label="Start month">
+          <input type="range" id="r1b" min="0" max="943" value="943" aria-label="End month">
+        </div>
+        <span class="yr num" id="y1b">Aug 2026</span>
+      </div>
+      <figcaption class="src"><span><b>Source:</b> U.S. Bureau of Labor Statistics via FRED (CPIAUCSL), data to Aug 2026. No CPI was published for Oct 2025, hence the gap.</span><span><b>Model:</b> SARIMA(1,1,2)(0,1,1)<sub>12</sub> on log CPI</span></figcaption>
+    </figure>
+  </div>
+
+  <section class="wrap film" id="film">
+    <figure class="promo">
+      <video src="inflation-promo.mp4" poster="poster-film.jpg" width="1920" height="1080" controls playsinline preload="none" aria-label="Inflation Forecaster promo film, 52 seconds, with sound"></video>
+      <button class="play" type="button" aria-label="Play the 52 second film"><i aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5Z"/></svg></i><span>Watch the film, sound on</span><small>0:52</small></button>
+    </figure>
+    <div class="txt">
+      <h2 class="sh">The whole project in 52 seconds.</h2>
+      <p class="lead">Real data in, a model chosen by AIC, an honest backtest and a forecast that admits what it can't know.</p>
+      <ul class="covers">
+        <li>Data<span class="num">955 months, FRED</span></li>
+        <li>Inflation today<span class="num">3.71%, Aug 2026</span></li>
+        <li>Central forecast<span class="num">3.39%, Aug 2027</span></li>
+      </ul>
+    </div>
   </section>
 
-  <h2>The result, in four numbers</h2>
-  <p>As of August 2026 data, US CPI is running at 3.71% year on year.</p>
-  <div class="grid stats4">
-    <div class="card"><div class="num">0.234</div><span>1-month RMSE, SARIMA</span></div>
-    <div class="card"><div class="num">0.270</div><span>1-month RMSE, random walk</span></div>
-    <div class="card"><div class="num">0.995</div><span>Ljung-Box p, residuals</span></div>
-    <div class="card"><div class="num">3.39%</div><span>forecast for Aug 2027</span></div>
-  </div>
-
-  <h2>How it works</h2>
-  <div class="grid">
-    <div class="card"><b>1. Real data</b><p>The US CPI index from FRED (<code>CPIAUCSL</code>): 955 monthly observations from 1947 to 2026, pulled from the public CSV.</p></div>
-    <div class="card"><b>2. Model chosen, not guessed</b><p>Seven seasonal ARIMA candidates are fitted on log(CPI) and ranked by AIC. The winner is SARIMA(1,1,2)(0,1,1)<sub>12</sub>.</p></div>
-    <div class="card"><b>3. Honest backtest</b><p>Walk-forward over the last 36 months: at each month it forecasts 1, 3, 6 and 12 months ahead using only the past, like a real forecaster.</p></div>
-    <div class="card"><b>4. Hard baselines</b><p>A random walk on the inflation rate and a seasonal naive forecast. They are the numbers a model has to beat to be worth anything.</p></div>
-  </div>
-
-  <h2>Does it beat a baseline that fights back?</h2>
-  <p>Error on year-on-year inflation (RMSE, percentage points) by forecast horizon. Green is the winner.</p>
-  <div class="two">
-    <div class="card scroll">
-      <table>
-        <tr><th>Horizon</th><th>SARIMA</th><th>Random walk</th><th>Seasonal naive</th></tr>
-        <tr><td>1 month</td><td class="w">0.234</td><td>0.270</td><td>1.885</td></tr>
-        <tr><td>3 months</td><td>0.522</td><td class="w">0.504</td><td>1.603</td></tr>
-        <tr><td>6 months</td><td>0.641</td><td class="w">0.547</td><td>1.158</td></tr>
-        <tr><td>12 months</td><td>1.122</td><td class="w">0.846</td><td>0.846</td></tr>
-      </table>
-      <div class="finding"><b style="color:var(--red)">The honest finding.</b> SARIMA wins at one month. From three months on, a random walk on the inflation rate is unbeatable: the classic Atkeson–Ohanian result. One-month bias is -0.028 pp and the residuals look like white noise.</div>
+  <section class="wrap" id="method">
+    <div class="mhead">
+    <div><h2 class="sh">How the forecast is built</h2>
+    <p class="lead">Prices from the Bureau of Labor Statistics, monthly since January 1947. The model does not see inflation directly. It works on the log of the price level, then converts back to inflation, the change against the same month a year earlier.</p></div>
+    <aside class="pi"><span>Inflation, what gets scored</span><div class="f">π<sub>t</sub> = 100 × (CPI<sub>t</sub> / CPI<sub>t−12</sub> − 1)</div><small class="num">Aug 2026: 3.71%</small></aside>
     </div>
-    <figure><img src="backtest.jpg" alt="The backtest card of the app, with the RMSE table" loading="lazy"><figcaption>The same table inside the app.</figcaption></figure>
-  </div>
+    <div class="eq">
+      <div class="f" aria-label="One minus phi one B, times one minus B, times one minus B to the twelve, times log CPI at t, equals one plus theta one B plus theta two B squared, times one plus capital theta one B to the twelve, times epsilon t">(1 − φ<sub>1</sub>B)(1 − B)(1 − B<sup>12</sup>) ln CPI<sub>t</sub> <br class="m">= (1 + θ<sub>1</sub>B + θ<sub>2</sub>B<sup>2</sup>)(1 + Θ<sub>1</sub>B<sup>12</sup>) ε<sub>t</sub></div>
+      <p class="cap">SARIMA(1,1,2)(0,1,1)<sub>12</sub>. B means "one month back": B·x<sub>t</sub> = x<sub>t−1</sub>, and B<sup>12</sup> is the same month last year.</p>
+    </div>
+    <dl class="terms">
+      <div><dt>(1 − B)(1 − B<sup>12</sup>)</dt><dd>Removes the trend and the yearly pattern, so what is left has no drift. ADF test on Δ&nbsp;ln&nbsp;CPI: p&nbsp;=&nbsp;0.0001.</dd></div>
+      <div><dt>φ<sub>1</sub></dt><dd>This month's change echoes last month's.</dd></div>
+      <div><dt>θ<sub>1</sub>, θ<sub>2</sub></dt><dd>Corrects for the surprises of the last two months.</dd></div>
+      <div><dt>Θ<sub>1</sub></dt><dd>Corrects for the surprise in the same month last year.</dd></div>
+    </dl>
 
-  <h2>The forecast, with its uncertainty</h2>
-  <p>Twelve months out the model sees inflation cooling from 3.71% to 3.39%, but the 80% band runs from 0.8% to 6.0%. At that horizon the band is the real answer, and it says as much.</p>
-  <figure><img src="forecast.jpg" alt="Forecast chart: history in black, 12-month forecast in red with an 80% band and the 2% target" loading="lazy"><figcaption>US CPI inflation: history, 12-month SARIMA forecast, 80% band and the 2% target.</figcaption></figure>
+    <div class="duo">
+      <div class="card">
+        <h2 class="ct">The order is chosen by AIC, not by hand</h2>
+        <p class="cs">Seven candidates fitted on the full sample. AIC rewards fit and charges for every extra parameter. Bars show how much worse each one is than the winner.</p>
+        <ul class="aic" id="aic"></ul>
+        <p class="src" style="display:block"><b>Note:</b> the last candidate is cut; its ΔAIC is 3,750, a fit that did not converge well.</p>
+      </div>
+      <div class="card">
+        <h2 class="ct">Checks on what the model leaves behind</h2>
+        <table class="dg num">
+          <tr><td>Ljung-Box, 12 lags<small>p above 0.05: no pattern left in the errors</small></td><td>p = 0.995</td></tr>
+          <tr><td>Ljung-Box, 24 lags</td><td>p = 1.000</td></tr>
+          <tr><td>ADF on Δ ln CPI<small>p below 0.05: the differenced series is stationary</small></td><td>p = 0.0001</td></tr>
+          <tr><td>One-month bias<small>mean of actual minus forecast, 36 months</small></td><td>−0.028 pp</td></tr>
+        </table>
+        <p class="cs" style="margin-top:16px">In plain words: what the model gets wrong looks like random noise, so it has squeezed out the pattern in past prices. It is not systematically too high or too low.</p>
+      </div>
+    </div>
+  </section>
 
-  <h2>Run it yourself</h2>
-  <p>The app is an animated, step-by-step working paper that runs the model live (a small Python server, so it isn't hosted here). Pick CPI, Core CPI, PCE or Core PCE.</p>
-  <pre>git clone https://github.com/nachoie123/inflation-forecaster
+  <section class="wrap" id="race">
+    <h2 class="sh">The race against forecasts that need no model</h2>
+    <p class="lead">For each of the last 36 months, the model only sees data up to that month and forecasts 1, 3, 6 and 12 months ahead. Two rivals do the same with no model at all. <b style="color:var(--rw)">Random walk</b>: inflation stays where it is. <b style="color:var(--sn)">Seasonal naive</b>: inflation is what it was a year before. Score: RMSE = √(mean of (actual − forecast)²), in percentage points.</p>
+    <figure class="card" style="margin:28px 0 0">
+      <h2 class="ct" id="rt">Forecast 1 month ahead vs what happened</h2>
+      <div class="tabs" role="group" aria-label="Forecast horizon">
+        <button type="button" data-h="1" aria-pressed="true">1 month</button><button type="button" data-h="3" aria-pressed="false">3 months</button><button type="button" data-h="6" aria-pressed="false">6 months</button><button type="button" data-h="12" aria-pressed="false">12 months</button>
+      </div>
+      <div class="race">
+        <div class="chart"><p class="leg"><span><i style="background:var(--act)"></i>Actual</span><span><i style="background:var(--sar)"></i>SARIMA</span><span><i style="background:var(--rw)"></i>Random walk</span><span><i style="background:var(--sn)"></i>Seasonal naive</span></p><svg id="c2" height="330" role="img" aria-label="Actual US inflation versus the three forecasts over the 36-month backtest"></svg><div class="tip" id="t2"></div></div>
+        <div class="bars">
+          <h3>Error so far (RMSE, pp). Lower wins. A cut bar runs off the scale.</h3>
+          <div class="bx" id="bx"></div>
+          <p class="verdict" id="vd" aria-live="polite"></p>
+        </div>
+      </div>
+      <div class="tl">
+        <button class="pp" id="p2" type="button" aria-label="Replay the race"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9.5-5.5z"/></svg></button>
+        <span class="yr num" id="y2a">Aug 2023</span>
+        <div class="rng"><div class="trk"></div><div class="sel" id="sel2"></div>
+          <input type="range" id="r2" min="1" max="36" value="36" aria-label="Backtest months revealed">
+        </div>
+        <span class="yr num" id="y2b">Aug 2026</span>
+      </div>
+      <figcaption class="src"><span><b>Backtest:</b> walk-forward, Aug 2023 to Aug 2026, parameters fitted once before the window</span><span><b>Data:</b> FRED CPIAUCSL</span></figcaption>
+    </figure>
+
+    <table class="stand" id="stand"><thead><tr><th>Horizon</th><th>SARIMA</th><th>Random walk</th><th>Seasonal naive</th></tr></thead><tbody></tbody></table>
+    <div class="fnd">
+    <p class="finding">The model wins only at <b>one month</b>: 0.234 against 0.270, about 13% less error. From <b>three months</b> on, "inflation stays where it is" is better, and at twelve months it is ahead by 0.28 points. That is the classic Atkeson and Ohanian (2001) result: for inflation, a random walk is very hard to beat.</p>
+    <div class="big"><div><strong class="num">13%</strong><span>less error than the random walk, 1 month ahead</span></div><div><strong class="num" style="color:var(--rw)">0.28 pp</strong><span>more error than the random walk, 12 months ahead</span></div></div>
+    </div>
+  </section>
+
+  <section class="wrap" id="limits">
+    <h2 class="sh">Where it fails</h2>
+    <p class="lead">The forecast for August 2027 is 3.39%. The number that matters more is the band around it.</p>
+    <div class="limits">
+      <div class="key"><strong class="num">5.2 pp</strong><h3>The 12-month band is 5.2 points wide</h3><p>80% of outcomes between 0.84% and 6.01%. At that horizon the band is the honest answer, not the line.</p></div>
+      <div class="key"><strong class="num">3 of 4</strong><h3>It loses from three months on</h3><p>A random walk wins at 3, 6 and 12 months. Use the model for next month's print, not for next year.</p></div>
+      <div><h3>It only knows past prices</h3><p>No oil, wages, interest rates or Fed decisions go in. A shock that is not in the price history is invisible to it.</p></div>
+      <div><h3>The test window is short</h3><p>36, 34, 31 and 25 forecasts per horizon, all from one period (2023 to 2026). Another decade could rank them differently.</p></div>
+      <div><h3>Parameters are fitted once</h3><p>The backtest re-filters the data month by month but does not refit, which is fast and leak-free but slightly kinder to drift.</p></div>
+      <div><h3>Seven candidates, not a full search</h3><p>The order comes from a curated shortlist of the usual seasonal models, not an exhaustive grid.</p></div>
+    </div>
+  </section>
+
+  <section class="wrap run" id="run">
+    <div>
+      <h2 class="sh">Run it yourself</h2>
+      <p class="lead">The full app is a step-by-step working paper that runs the model live on CPI, Core CPI, PCE or Core PCE. It needs a small Python server, so it is not hosted here.</p>
+</div>
+    <div>
+<pre>git clone https://github.com/nachoie123/inflation-forecaster
 cd inflation-forecaster
 pip install -r requirements.txt
-python3 server.py   # http://localhost:8000</pre>
-
-  <footer>Built by <a href="https://www.linkedin.com/in/nacho-san-benito/">Ignacio San Benito</a> · <a href="https://github.com/nachoie123/inflation-forecaster">GitHub</a></footer>
+python3 server.py   <span class="c"># http://localhost:8000</span></pre>
+      <p style="font-size:15px;color:var(--muted);margin:14px 0 0">Python, statsmodels and a standard-library web server. MIT licence. FRED data, no API key.</p>
+    </div>
+  </section>
 </main>
+
+<footer>
+  <div class="wrap">
+    <span><a href="https://nachosanbenito.com">Ignacio San Benito</a> · IE University</span>
+    <a href="https://github.com/nachoie123/inflation-forecaster">Source on GitHub</a>
+  </div>
+</footer>
+
+<script>
+const D = {"yoy_start":"1948-01","yoy":[10.24,9.48,6.82,8.27,9.38,9.38,9.76,9.06,6.65,6.11,4.77,2.73,1.39,1.01,1.74,0.42,-0.42,-0.95,-2.87,-2.99,-2.5,-2.63,-1.9,-1.83,-2.08,-1.25,-1.13,-1.13,-0.59,-0.17,1.56,2.11,2.48,3.51,3.8,5.8,7.95,9.4,9.48,9.6,9.34,8.58,7.64,6.86,6.94,6.78,6.99,5.96,4.22,2.25,1.97,2.08,1.85,2.31,2.97,3.21,2.31,2.03,1.41,0.91,0.72,0.68,0.91,0.87,0.87,0.9,0.41,0.6,0.98,0.97,0.6,0.6,1.13,1.5,1.13,0.64,0.86,0.64,0.26,0.0,-0.3,-0.85,-0.26,-0.37,-0.63,-0.63,-0.52,-0.26,-0.59,-0.85,-0.37,-0.48,0.15,0.37,0.37,0.37,0.22,0.15,0.37,0.52,0.97,1.65,1.98,2.21,1.86,2.57,2.34,2.83,3.13,3.5,3.61,3.71,3.59,3.54,3.3,3.55,3.55,2.94,3.27,3.04,3.51,3.24,3.63,3.62,3.36,2.85,2.48,2.33,2.08,2.08,1.9,1.76,1.29,1.05,0.35,0.14,0.35,0.69,0.9,0.83,1.18,1.52,1.38,1.52,1.24,1.41,1.52,1.93,1.83,1.72,1.37,1.47,1.23,1.36,1.47,1.36,1.6,1.46,1.46,0.91,0.91,0.78,1.25,1.11,1.25,0.77,0.67,0.67,0.67,0.9,1.11,1.34,1.34,1.24,1.0,1.14,1.47,1.33,1.33,1.23,1.33,1.23,1.13,0.89,0.89,1.32,1.56,1.55,0.99,1.22,1.32,1.65,1.64,1.41,1.41,1.54,1.54,1.31,1.08,0.98,1.17,1.2,1.4,1.2,1.1,1.2,1.2,1.39,1.61,1.93,1.81,1.61,1.74,1.7,1.73,1.92,1.92,2.56,2.78,2.87,2.76,2.44,2.75,3.49,3.57,3.79,3.56,3.36,3.2,2.87,2.55,2.54,2.32,2.84,2.93,2.6,2.6,2.59,3.1,3.28,3.65,3.64,3.94,3.93,4.23,4.2,4.49,4.48,4.46,4.75,4.42,4.71,4.69,4.68,5.25,5.52,5.51,5.48,5.44,5.43,5.7,5.67,5.93,5.9,6.16,6.42,6.09,6.06,6.04,6.01,5.71,5.69,5.66,5.63,5.6,5.57,5.28,4.72,4.44,4.16,4.4,4.38,4.37,4.36,4.08,3.81,3.54,3.27,3.26,3.76,3.5,3.49,3.23,2.96,2.96,2.95,3.19,3.18,3.41,3.41,3.64,3.86,4.83,5.3,5.53,6.0,5.74,7.4,7.36,8.06,8.25,8.94,9.6,10.0,10.14,10.07,10.71,10.86,11.54,10.89,11.95,11.84,12.2,12.1,11.75,11.21,10.46,10.19,9.26,9.18,9.53,8.62,7.91,7.65,7.38,7.13,6.69,6.27,6.06,5.85,6.21,5.98,5.56,5.72,5.49,5.46,5.06,5.04,5.2,6.08,6.43,6.95,6.74,6.7,6.67,6.63,6.42,6.39,6.71,6.68,6.81,6.24,6.38,6.5,7.14,7.44,7.73,7.86,8.48,8.93,8.87,8.99,9.25,9.84,10.25,10.49,10.7,11.08,11.45,11.84,11.88,12.07,12.59,13.25,13.87,14.16,14.59,14.59,14.43,14.27,13.15,12.89,12.77,12.63,12.63,12.35,11.79,11.39,10.61,10.14,9.79,9.7,10.77,10.82,10.97,10.27,9.58,8.91,8.26,7.61,6.88,6.62,6.91,7.18,6.56,5.97,4.94,5.03,4.48,3.83,3.71,3.48,3.59,4.0,3.44,2.47,2.36,2.46,2.76,2.75,3.16,3.79,4.29,4.69,4.89,4.55,4.33,4.33,4.31,4.3,4.28,4.27,4.15,4.04,3.53,3.61,3.79,3.58,3.57,3.66,3.46,3.35,3.25,3.24,3.51,3.79,3.97,3.2,2.15,1.59,1.68,1.77,1.67,1.58,1.76,1.57,1.28,1.19,1.36,1.91,2.84,3.68,3.67,3.75,3.93,4.29,4.27,4.36,4.53,4.33,4.13,3.94,3.83,3.99,3.98,3.96,4.13,4.11,4.18,4.26,4.25,4.41,4.48,4.65,4.89,5.03,5.28,5.17,5.06,4.62,4.44,4.59,4.66,4.64,5.2,5.26,5.24,4.71,4.37,4.67,4.82,5.7,6.17,6.38,6.2,6.25,5.65,5.31,4.82,4.81,5.03,4.7,4.37,3.8,3.4,2.85,3.07,2.98,2.67,2.82,3.19,3.18,3.02,3.01,3.16,3.07,2.99,3.28,3.12,2.97,3.25,3.25,3.02,3.16,3.22,3.0,2.85,2.84,2.76,2.75,2.74,2.81,2.45,2.52,2.65,2.36,2.29,2.49,2.7,2.9,2.97,2.61,2.6,2.6,2.87,2.86,2.79,3.13,3.12,3.04,2.83,2.62,2.55,2.74,2.6,2.53,2.79,2.72,2.84,2.83,2.83,2.82,2.88,2.81,3.0,3.06,3.25,3.38,3.04,3.03,2.77,2.43,2.24,2.23,2.17,2.29,2.22,2.09,1.89,1.7,1.63,1.44,1.38,1.44,1.69,1.62,1.75,1.62,1.43,1.49,1.48,1.61,1.67,1.67,1.73,2.28,2.09,1.97,2.14,2.26,2.63,2.56,2.62,2.68,2.79,3.22,3.76,3.01,3.13,3.73,3.6,3.35,3.46,3.45,3.44,3.44,3.72,3.53,2.98,3.22,3.56,3.19,2.72,2.72,2.59,2.13,1.89,1.6,1.2,1.14,1.36,1.64,1.24,1.07,1.47,1.75,1.52,2.03,2.25,2.48,2.76,3.15,3.03,2.18,1.89,1.95,2.06,2.22,2.38,2.04,1.93,2.04,2.03,1.69,1.74,2.29,2.9,3.17,2.94,2.55,2.54,3.19,3.62,3.34,2.84,3.05,3.21,3.36,2.87,2.54,3.07,3.65,4.74,4.35,3.34,3.34,4.02,3.64,3.42,3.61,3.98,4.18,4.1,3.93,2.01,1.41,1.97,2.52,2.08,2.42,2.8,2.59,2.71,2.69,2.32,1.9,2.83,3.61,4.37,4.11,4.29,4.14,3.97,3.9,4.09,4.94,5.5,5.31,4.95,3.73,1.1,-0.02,-0.11,0.01,-0.45,-0.58,-1.02,-1.23,-1.96,-1.48,-1.38,-0.22,1.91,2.81,2.62,2.15,2.29,2.21,2.0,1.12,1.34,1.15,1.12,1.17,1.08,1.44,1.7,2.12,2.62,3.08,3.46,3.5,3.58,3.75,3.81,3.52,3.45,3.06,3.01,2.9,2.58,2.27,1.74,1.65,1.42,1.69,1.95,2.16,1.8,1.76,1.68,2.02,1.52,1.14,1.39,1.72,1.89,1.54,1.09,0.88,1.23,1.51,1.56,1.12,1.61,2.02,2.17,2.06,1.97,1.72,1.68,1.61,1.23,0.65,-0.23,-0.09,-0.02,-0.1,0.04,0.18,0.23,0.24,0.01,0.13,0.44,0.64,1.24,0.85,0.89,1.17,1.08,1.08,0.87,1.06,1.55,1.69,1.68,2.05,2.51,2.81,2.44,2.18,1.86,1.64,1.73,1.93,2.18,2.02,2.17,2.13,2.15,2.26,2.33,2.47,2.78,2.81,2.85,2.64,2.33,2.49,2.15,2.0,1.49,1.52,1.88,2.0,1.8,1.67,1.83,1.74,1.68,1.73,2.09,2.32,2.6,2.34,1.49,0.31,0.2,0.72,1.0,1.28,1.39,1.23,1.18,1.32,1.37,1.67,2.67,4.13,4.92,5.3,5.25,5.15,5.35,6.24,6.9,7.17,7.56,7.94,8.57,8.23,8.54,8.98,8.46,8.22,8.19,7.76,7.12,6.4,6.33,5.96,4.92,4.95,4.13,3.07,3.29,3.72,3.69,3.25,3.13,3.32,3.09,3.16,3.49,3.36,3.24,2.97,2.94,2.61,2.43,2.58,2.72,2.87,2.99,2.8,2.38,2.33,2.38,2.68,2.74,2.94,3.02,null,2.99,3.0,2.83,2.66,3.32,3.95,4.27,3.73,3.54,3.71],"fc":[["2026-09",3.71,3.36,4.06],["2026-10",3.77,3.12,4.41],["2026-11",3.79,2.87,4.71],["2026-12",3.71,2.54,4.89],["2027-01",3.77,2.37,5.19],["2027-02",3.81,2.2,5.44],["2027-03",3.24,1.45,5.06],["2027-04",2.85,0.9,4.84],["2027-05",2.62,0.51,4.77],["2027-06",3.29,1.01,5.61],["2027-07",3.54,1.11,6.02],["2027-08",3.39,0.84,6.01]],"bt":{"1":[["2023-08",3.723,3.401,3.288,8.223],["2023-09",3.687,3.758,3.723,8.192],["2023-10",3.251,3.631,3.687,7.759],["2023-11",3.133,3.202,3.251,7.123],["2023-12",3.316,3.304,3.133,6.405],["2024-01",3.088,3.133,3.316,6.327],["2024-02",3.157,3.075,3.088,5.958],["2024-03",3.487,3.417,3.157,4.918],["2024-04",3.361,3.429,3.487,4.95],["2024-05",3.244,3.571,3.361,4.132],["2024-06",2.97,3.435,3.244,3.071],["2024-07",2.941,2.723,2.97,3.288],["2024-08",2.607,2.714,2.941,3.723],["2024-09",2.426,2.51,2.607,3.687],["2024-10",2.579,2.593,2.426,3.251],["2024-11",2.719,2.68,2.579,3.133],["2024-12",2.871,2.769,2.719,3.316],["2025-01",2.991,2.967,2.871,3.088],["2025-02",2.802,2.992,2.991,3.157],["2025-03",2.382,2.681,2.802,3.487],["2025-04",2.325,2.251,2.382,3.361],["2025-05",2.377,2.507,2.325,3.244],["2025-06",2.68,2.696,2.377,2.97],["2025-07",2.743,2.663,2.68,2.941],["2025-08",2.939,2.843,2.743,2.607],["2025-09",3.023,3.081,2.939,2.426],["2025-11",2.988,3.071,3.023,2.579],["2025-12",3.002,2.952,2.988,2.719],["2026-01",2.829,2.942,3.002,2.871],["2026-02",2.665,2.741,2.829,2.991],["2026-03",3.32,2.719,2.665,2.802],["2026-04",3.947,3.789,3.32,2.382],["2026-05",4.27,4.166,3.947,2.325],["2026-06",3.727,4.509,4.27,2.377],["2026-07",3.54,3.525,3.727,2.68],["2026-08",3.713,3.408,3.54,2.743]],"3":[["2023-10",3.251,3.216,3.288,7.759],["2023-11",3.133,3.855,3.723,7.123],["2023-12",3.316,4.012,3.687,6.405],["2024-01",3.088,3.227,3.251,6.327],["2024-02",3.157,3.119,3.133,5.958],["2024-03",3.487,3.372,3.316,4.918],["2024-04",3.361,3.197,3.088,4.95],["2024-05",3.244,3.554,3.157,4.132],["2024-06",2.97,4.009,3.487,3.071],["2024-07",2.941,3.907,3.361,3.288],["2024-08",2.607,3.149,3.244,3.723],["2024-09",2.426,2.312,2.97,3.687],["2024-10",2.579,2.883,2.941,3.251],["2024-11",2.719,2.835,2.607,3.133],["2024-12",2.871,2.736,2.426,3.316],["2025-01",2.991,2.76,2.579,3.088],["2025-02",2.802,2.794,2.719,3.157],["2025-03",2.382,2.911,2.871,3.487],["2025-04",2.325,2.979,2.991,3.361],["2025-05",2.377,2.881,2.802,3.244],["2025-06",2.68,2.76,2.382,2.97],["2025-07",2.743,2.893,2.325,2.941],["2025-08",2.939,2.755,2.377,2.607],["2025-09",3.023,2.817,2.68,2.426],["2025-11",2.988,3.001,2.743,2.579],["2025-12",3.002,3.163,2.939,2.719],["2026-01",2.829,3.004,3.023,2.871],["2026-02",2.665,2.821,2.988,2.991],["2026-03",3.32,3.009,3.002,2.802],["2026-04",3.947,3.056,2.829,2.382],["2026-05",4.27,2.973,2.665,2.325],["2026-06",3.727,4.107,3.32,2.377],["2026-07",3.54,4.467,3.947,2.68],["2026-08",3.713,4.642,4.27,2.743]],"6":[["2024-01",3.088,3.425,3.288,6.327],["2024-02",3.157,4.03,3.723,5.958],["2024-03",3.487,4.151,3.687,4.918],["2024-04",3.361,3.376,3.251,4.95],["2024-05",3.244,3.471,3.133,4.132],["2024-06",2.97,3.825,3.316,3.071],["2024-07",2.941,3.752,3.088,3.288],["2024-08",2.607,3.699,3.157,3.723],["2024-09",2.426,3.794,3.487,3.687],["2024-10",2.579,3.909,3.361,3.251],["2024-11",2.719,3.461,3.244,3.133],["2024-12",2.871,2.678,2.97,3.316],["2025-01",2.991,3.122,2.941,3.088],["2025-02",2.802,2.901,2.607,3.157],["2025-03",2.382,2.695,2.426,3.487],["2025-04",2.325,2.69,2.579,3.361],["2025-05",2.377,2.981,2.719,3.244],["2025-06",2.68,3.563,2.871,2.97],["2025-07",2.743,3.633,2.991,2.941],["2025-08",2.939,3.38,2.802,2.607],["2025-09",3.023,2.939,2.382,2.426],["2025-11",2.988,3.123,2.325,2.579],["2025-12",3.002,2.888,2.377,2.719],["2026-01",2.829,2.794,2.68,2.871],["2026-02",2.665,2.895,2.743,2.991],["2026-03",3.32,3.172,2.939,2.802],["2026-04",3.947,3.31,3.023,2.382],["2026-05",4.27,3.213,2.988,2.325],["2026-06",3.727,3.414,3.002,2.377],["2026-07",3.54,3.271,2.829,2.68],["2026-08",3.713,3.109,2.665,2.743]],"12":[["2024-07",2.941,4.172,3.288,3.288],["2024-08",2.607,4.557,3.723,3.723],["2024-09",2.426,4.395,3.687,3.687],["2024-10",2.579,3.94,3.251,3.251],["2024-11",2.719,3.955,3.133,3.133],["2024-12",2.871,4.031,3.316,3.316],["2025-01",2.991,4.006,3.088,3.088],["2025-02",2.802,4.128,3.157,3.157],["2025-03",2.382,4.2,3.487,3.487],["2025-04",2.325,4.099,3.361,3.361],["2025-05",2.377,3.729,3.244,3.244],["2025-06",2.68,3.284,2.97,2.97],["2025-07",2.743,3.707,2.941,2.941],["2025-08",2.939,3.602,2.607,2.607],["2025-09",3.023,3.548,2.426,2.426],["2025-11",2.988,3.576,2.579,2.579],["2025-12",3.002,3.646,2.719,2.719],["2026-01",2.829,3.767,2.871,2.871],["2026-02",2.665,3.768,2.991,2.991],["2026-03",3.32,3.53,2.802,2.802],["2026-04",3.947,3.226,2.382,2.382],["2026-05",4.27,3.414,2.325,2.325],["2026-06",3.727,3.29,2.377,2.377],["2026-07",3.54,3.323,2.68,2.68],["2026-08",3.713,3.444,2.743,2.743]]},"backtest":[{"h":1,"n":36,"sarima":0.234,"rw":0.27,"snaive":1.885,"winner":"SARIMA"},{"h":3,"n":34,"sarima":0.522,"rw":0.504,"snaive":1.603,"winner":"RW"},{"h":6,"n":31,"sarima":0.641,"rw":0.547,"snaive":1.158,"winner":"RW"},{"h":12,"n":25,"sarima":1.122,"rw":0.846,"snaive":0.846,"winner":"RW"}],"candidates":[{"order":"(1,1,2)(0,1,1)[12]","aic":-8355.2},{"order":"(1,1,1)(1,1,1)[12]","aic":-8328.3},{"order":"(0,1,1)(0,1,1)[12]","aic":-8265.3},{"order":"(1,1,1)(0,1,1)[12]","aic":-8239.5},{"order":"(2,1,2)(0,1,1)[12]","aic":-7859.0},{"order":"(2,1,2)(1,1,1)[12]","aic":-7669.9},{"order":"(2,1,1)(0,1,1)[12]","aic":-4605.1}]};
+(() => {
+  const $ = s => document.querySelector(s);
+  const RM = matchMedia('(prefers-reduced-motion: reduce)');
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const [Y0, M0] = D.yoy_start.split('-').map(Number);
+  const N = D.yoy.length, LAST = N - 1;
+  const ymOf = i => { const m = M0 - 1 + Math.round(i); return [Y0 + Math.floor(m / 12), m % 12]; };
+  const label = i => { const [y, m] = ymOf(i); return MON[m] + ' ' + y; };
+  const code = i => { const [y, m] = ymOf(i); return y + '-' + String(m + 1).padStart(2, '0'); };
+  const idxOf = s => { const [y, m] = s.split('-').map(Number); return (y - Y0) * 12 + (m - M0); };
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const f2 = v => v.toFixed(2);
+  const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const niceStep = (span, n) => { const r = span / n, p = Math.pow(10, Math.floor(Math.log10(r))); for (const k of [1, 2, 2.5, 5, 10]) if (k * p >= r) return k * p; return 10 * p; };
+
+  /* ---------- 1. the CPI line with a time slider and the forecast cone ---------- */
+  const svg1 = $('#c1'), tip1 = $('#t1'), ra = $('#r1a'), rb = $('#r1b');
+  ra.max = rb.max = LAST;
+  const FC = D.fc; // [date, yoy, lo, hi]
+  const st = {s: 0, e: LAST, cone: 1, y0: null, y1: null};
+  let raf1 = 0, anim = null, playing = false;
+
+  function yTarget() {
+    const a = Math.max(0, Math.floor(st.s)), b = Math.min(LAST, Math.ceil(st.e));
+    let lo = 0, hi = 2;
+    for (let i = a; i <= b; i++) { const v = D.yoy[i]; if (v === null) continue; if (v < lo) lo = v; if (v > hi) hi = v; }
+    if (st.cone > 0) FC.forEach(r => { lo = Math.min(lo, r[2]); hi = Math.max(hi, r[3]); });
+    const pad = (hi - lo) * .06; return [lo - pad, hi + pad];
+  }
+  function draw1() {
+    const W = svg1.clientWidth, H = svg1.clientHeight, mob = W < 520;
+    const m = {l: mob ? 30 : 36, r: mob ? 64 : 112, t: 14, b: 26};
+    const [ty0, ty1] = yTarget();
+    if (st.y0 === null || !anim) { st.y0 = ty0; st.y1 = ty1; }
+    else { st.y0 += (ty0 - st.y0) * .2; st.y1 += (ty1 - st.y1) * .2; }
+    const v0 = st.s, v1 = Math.max(st.e + 12 * st.cone, st.s + 12);
+    const X = i => m.l + (i - v0) / (v1 - v0) * (W - m.l - m.r);
+    const Y = v => m.t + (st.y1 - v) / (st.y1 - st.y0) * (H - m.t - m.b);
+    let g = '';
+    const ys = niceStep(st.y1 - st.y0, mob ? 4 : 6);
+    for (let v = Math.ceil(st.y0 / ys) * ys; v <= st.y1; v += ys) {
+      const y = Y(v).toFixed(1);
+      g += `<line x1="${m.l}" x2="${W - m.r + 8}" y1="${y}" y2="${y}" stroke="${css('--grid')}" stroke-dasharray="${Math.abs(v) < 1e-9 ? '0' : '3 4'}"/>`;
+      g += `<text x="${m.l - 6}" y="${+y + 4}" text-anchor="end" font-size="12" fill="${css('--muted')}">${+v.toFixed(1)}%</text>`;
+    }
+    const span = (v1 - v0) / 12, xs = niceStep(span, mob ? 4 : 8), xstep = Math.max(1, Math.round(xs));
+    const yA = ymOf(v0)[0], yB = ymOf(v1)[0];
+    for (let yr = Math.ceil(yA / xstep) * xstep; yr <= yB; yr += xstep) {
+      const i = (yr - Y0) * 12 + (1 - M0); if (i < v0 || i > v1) continue;
+      g += `<text x="${X(i).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="12" fill="${css('--muted')}">${yr}</text>`;
+    }
+    // 2% target
+    if (st.y0 < 2 && st.y1 > 2) g += `<line x1="${m.l}" x2="${W - m.r + 8}" y1="${Y(2)}" y2="${Y(2)}" stroke="${css('--muted')}" stroke-width="1" stroke-dasharray="1 4" stroke-linecap="round"/>${mob ? '' : `<text x="${m.l + 4}" y="${Y(2) + 15}" font-size="11" fill="${css('--muted')}">2% target</text>`}`;
+    // history
+    const a = Math.max(0, Math.floor(st.s)), b = Math.min(LAST, st.e);
+    let d = '', pen = 'M';
+    for (let i = a; i <= Math.floor(b); i++) { if (D.yoy[i] === null) { pen = 'M'; continue; } d += pen + X(i).toFixed(1) + ' ' + Y(D.yoy[i]).toFixed(1); pen = 'L'; }
+    const val = i => D.yoy[i] ?? D.yoy[i - 1];
+    const fb = Math.floor(b), fr = b - fb, endV = fr && fb < LAST ? val(fb) + (val(fb + 1) - val(fb)) * fr : val(fb);
+    if (fr) d += 'L' + X(b).toFixed(1) + ' ' + Y(endV).toFixed(1);
+    g += `<path d="${d}" fill="none" stroke="${css('--act')}" stroke-width="2" stroke-linejoin="round"/>`;
+    // forecast cone (opens month by month)
+    const k = st.cone * 12;
+    if (k > 0) {
+      const pts = [[LAST, D.yoy[LAST], D.yoy[LAST], D.yoy[LAST]]].concat(FC.map((r, j) => [LAST + j + 1, r[1], r[2], r[3]]));
+      const vis = []; for (let j = 0; j < pts.length; j++) { if (pts[j][0] - LAST <= k) vis.push(pts[j]); else { const p = pts[j - 1], q = pts[j], t = (LAST + k - p[0]); vis.push([LAST + k, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t, p[3] + (q[3] - p[3]) * t]); break; } }
+      const up = vis.map(p => X(p[0]).toFixed(1) + ' ' + Y(p[3]).toFixed(1)), dn = vis.slice().reverse().map(p => X(p[0]).toFixed(1) + ' ' + Y(p[2]).toFixed(1));
+      g += `<path d="M${up.join('L')}L${dn.join('L')}Z" fill="${css('--cone')}"/>`;
+      g += `<path d="M${vis.map(p => X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join('L')}" fill="none" stroke="${css('--sar')}" stroke-width="2" stroke-dasharray="5 4"/>`;
+      g += `<line x1="${X(LAST)}" x2="${X(LAST)}" y1="${m.t}" y2="${H - m.b}" stroke="${css('--grid')}"/>`;
+      if (st.cone > .98) {
+        const L = FC[11], lx = X(LAST + 12) + 8, sz = mob ? 11 : 13;
+        g += `<text x="${lx}" y="${Y(L[1]) + 4}" font-size="${sz}" font-weight="700" fill="${css('--sar')}">${f2(L[1])}%</text>`;
+        g += `<text x="${lx}" y="${Y(L[1]) + 4 + sz + 3}" font-size="${sz - 1}" fill="${css('--sar')}">Aug 2027</text>`;
+        g += `<text x="${lx}" y="${Y(L[3]) + 4}" font-size="${sz - 1}" fill="${css('--muted')}">${f2(L[3])}%</text>`;
+        g += `<text x="${lx}" y="${Y(L[2]) + 4}" font-size="${sz - 1}" fill="${css('--muted')}">${f2(L[2])}%</text>`;
+        if (!mob) g += `<text x="${X(LAST) + 6}" y="${m.t + 12}" font-size="12" fill="${css('--sar')}">forecast</text>`;
+      }
+    }
+    // end label of the history line
+    const ex = X(b), ey = Y(endV);
+    g += `<circle cx="${ex}" cy="${ey}" r="3.5" fill="${css('--act')}"/>`;
+    if (st.cone < .02) {
+      const sz = mob ? 11 : 13;
+      g += `<text x="${ex + 8}" y="${ey + 4}" font-size="${sz}" font-weight="700" fill="${css('--act')}">${f2(endV)}%</text><text x="${ex + 8}" y="${ey + 4 + sz + 3}" font-size="${sz - 1}" fill="${css('--muted')}">${label(Math.round(b))}</text>`;
+    } else if (!mob || st.s > LAST - 120) {
+      g += `<text x="${ex - 6}" y="${ey - 10}" text-anchor="end" font-size="13" font-weight="700" fill="${css('--act')}">${f2(endV)}%</text>`;
+    }
+    svg1.innerHTML = g;
+    // timeline
+    $('#y1a').textContent = label(Math.round(st.s)); $('#y1b').textContent = label(Math.round(st.e));
+    const tw = ra.clientWidth - 16;
+    $('#sel1').style.left = 8 + st.s / LAST * tw + 'px'; $('#sel1').style.width = (st.e - st.s) / LAST * tw + 'px';
+    return Math.abs(ty0 - st.y0) + Math.abs(ty1 - st.y1) > .01;
+  }
+  function loop1() { raf1 = 0; let more = false; if (anim) more = anim(performance.now()); const unsettled = draw1(); if (more || (unsettled && anim)) raf1 = requestAnimationFrame(loop1); else if (unsettled) { draw1(); } }
+  const kick = () => { if (!raf1) raf1 = requestAnimationFrame(loop1); };
+  function tween(dur, fn) { return new Promise(res => { const t0 = performance.now(); anim = now => { const t = Math.min(1, (now - t0) / dur); fn(t); if (t >= 1) { anim = null; res(); return false; } return true; }; kick(); }); }
+  function syncInputs() { ra.value = Math.round(st.s); rb.value = Math.round(st.e); }
+  let urlT; function saveURL() { clearTimeout(urlT); urlT = setTimeout(() => { const p = new URLSearchParams(location.search); p.set('time', code(Math.round(st.s)) + '..' + code(Math.round(st.e))); history.replaceState(null, '', '?' + p + location.hash); }, 250); }
+
+  const ZOOM = idxOf('2018-01');
+  async function play() {
+    if (playing) { playing = false; anim = null; setPP(false); return; }
+    playing = true; setPP(true);
+    const s0 = st.s >= LAST - 24 ? 0 : st.s;
+    st.s = s0; st.cone = 0; const from = Math.min(st.e < LAST ? st.e : s0 + 24, LAST);
+    const dur = RM.matches ? 1 : 3400 * (LAST - from) / LAST + 400;
+    await tween(dur, t => { if (!playing) return; st.e = from + (LAST - from) * t; syncInputs(); });
+    if (!playing) return;
+    await tween(RM.matches ? 1 : 900, t => { if (playing) st.cone = t; });
+    if (!playing) return;
+    const z0 = st.s;
+    await tween(RM.matches ? 1 : 1300, t => { if (playing) { st.s = z0 + (ZOOM - z0) * ease(t); syncInputs(); } });
+    playing = false; setPP(false); saveURL();
+  }
+  function setPP(on) { $('#p1').innerHTML = on ? '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>' : '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9.5-5.5z"/></svg>'; $('#p1').setAttribute('aria-label', on ? 'Pause the timeline' : 'Play the timeline'); }
+  $('#p1').addEventListener('click', play);
+  function onRange(which) {
+    playing = false; anim = null; setPP(false);
+    let a = +ra.value, b = +rb.value;
+    if (b - a < 12) { if (which === 'a') a = Math.max(0, b - 12); else b = Math.min(LAST, a + 12); }
+    st.s = a; st.e = b; st.cone = b === LAST ? 1 : 0; syncInputs(); st.y0 = null; draw1(); saveURL();
+  }
+  ra.addEventListener('input', () => onRange('a')); rb.addEventListener('input', () => onRange('b'));
+
+  // hover tooltip
+  svg1.parentElement.addEventListener('pointermove', ev => {
+    const r = svg1.getBoundingClientRect(), W = r.width, mob = W < 520, m = {l: mob ? 30 : 36, r: mob ? 64 : 112};
+    const v0 = st.s, v1 = Math.max(st.e + 12 * st.cone, st.s + 12);
+    const i = Math.round(v0 + (ev.clientX - r.left - m.l) / (W - m.l - m.r) * (v1 - v0));
+    let html = '';
+    if (i >= Math.ceil(st.s) && i <= Math.floor(st.e)) html = D.yoy[i] === null ? `<b>${label(i)}</b>No CPI was published for this month` : `<b>${label(i)}</b><i style="background:${css('--act')}"></i>Inflation <strong class="num">${f2(D.yoy[i])}%</strong>`;
+    else if (st.cone > .98 && i > LAST && i <= LAST + 12) { const f = FC[i - LAST - 1]; html = `<b>${label(i)} (forecast)</b><i style="background:${css('--sar')}"></i>SARIMA <strong class="num">${f2(f[1])}%</strong><br><span style="color:var(--muted)">80% band ${f2(f[2])}% to ${f2(f[3])}%</span>`; }
+    if (!html) { tip1.style.opacity = 0; return; }
+    tip1.innerHTML = html; tip1.style.opacity = 1;
+    const x = ev.clientX - r.left, tw = tip1.offsetWidth;
+    tip1.style.left = Math.min(W - tw, Math.max(0, x + (x > W / 2 ? -tw - 14 : 14))) + 'px'; tip1.style.top = Math.max(0, ev.clientY - r.top - 50) + 'px';
+  });
+  svg1.parentElement.addEventListener('pointerleave', () => tip1.style.opacity = 0);
+
+  // start: state from the URL, else play once (reduced motion: final frame)
+  const q = new URLSearchParams(location.search).get('time');
+  const mt = q && q.match(/^(\d{4}-\d{2})\.\.(\d{4}-\d{2})$/);
+  if (mt) { const a = Math.max(0, Math.min(LAST, idxOf(mt[1]))), b = Math.max(0, Math.min(LAST, idxOf(mt[2]))); st.s = Math.min(a, b - 12 < 0 ? 0 : a); st.e = Math.max(b, st.s + 12); st.cone = st.e === LAST ? 1 : 0; syncInputs(); draw1(); }
+  else if (RM.matches) { st.s = ZOOM; st.e = LAST; st.cone = 1; syncInputs(); draw1(); }
+  else { st.s = 0; st.e = 24; st.cone = 0; syncInputs(); draw1(); setTimeout(play, 350); }
+  new ResizeObserver(() => { st.y0 = null; draw1(); }).observe(svg1);
+
+  /* ---------- 2. the race against the baselines ---------- */
+  const svg2 = $('#c2'), tip2 = $('#t2'), r2 = $('#r2'), bx = $('#bx');
+  const MODELS = [['sar', 'SARIMA', 2], ['rw', 'Random walk', 3], ['sn', 'Seasonal naive', 4]];
+  const OFFICIAL = {}; D.backtest.forEach(b => OFFICIAL[b.h] = {sar: b.sarima, rw: b.rw, sn: b.snaive});
+  const rs = {h: 1, k: 36};
+  let rows, cum, maxE;
+  bx.innerHTML = MODELS.map(([id, nm]) => `<div class="brow" data-m="${id}"><div class="nm"><span>${nm}</span><b class="num">0</b></div><div class="tr"><span style="background:var(--${id})"></span></div></div>`).join('');
+  const brow = {}; bx.querySelectorAll('.brow').forEach(el => brow[el.dataset.m] = {el, v: el.querySelector('b'), bar: el.querySelector('.tr span'), y: 0});
+  function setH(h) {
+    rs.h = h; rows = D.bt[h];
+    cum = {}; maxE = 0;
+    MODELS.forEach(([id, , c]) => { let s = 0; cum[id] = rows.map((r, j) => { s += (r[1] - r[c]) ** 2; const e = Math.sqrt(s / (j + 1)); return e; }); });
+    ['sar', 'rw'].forEach(id => cum[id].forEach(e => maxE = Math.max(maxE, e))); maxE *= 1.15; // the real contest is SARIMA vs random walk; the naive bar is cut when it overflows
+    r2.max = rows.length; $('#y2a').textContent = label(idxOf(rows[0][0])); $('#y2b').textContent = label(idxOf(rows[rows.length - 1][0]));
+    $('#rt').textContent = `Forecast ${h} month${h > 1 ? 's' : ''} ahead vs what happened`;
+    document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.h === h));
+  }
+  function draw2() {
+    const W = svg2.clientWidth, H = svg2.clientHeight, mob = W < 520, n = rows.length;
+    const m = {l: mob ? 30 : 36, r: mob ? 10 : 100, t: 12, b: 26};
+    let lo = Infinity, hi = -Infinity; rows.forEach(r => MODELS.concat([[0, 0, 1]]).forEach(([, , c]) => { lo = Math.min(lo, r[c]); hi = Math.max(hi, r[c]); }));
+    const pad = (hi - lo) * .06; lo -= pad; hi += pad;
+    const X = j => m.l + j / (n - 1) * (W - m.l - m.r), Y = v => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+    let g = ''; const ys = niceStep(hi - lo, 5);
+    for (let v = Math.ceil(lo / ys) * ys; v <= hi; v += ys) { const y = Y(v).toFixed(1); g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}" stroke="${css('--grid')}" stroke-dasharray="3 4"/><text x="${m.l - 6}" y="${+y + 4}" text-anchor="end" font-size="12" fill="${css('--muted')}">${+v.toFixed(1)}%</text>`; }
+    rows.forEach((r, j) => { const [y, mo] = r[0].split('-').map(Number); if (mo === 1 || (j === 0 && mo < 7)) g += `<text x="${X(j)}" y="${H - 6}" text-anchor="${j === 0 ? 'start' : 'middle'}" font-size="12" fill="${css('--muted')}">${mo === 1 ? y : MON[mo - 1] + ' ' + y}</text>`; });
+    const k = Math.max(1, Math.min(n, rs.k)), kf = Math.floor(k);
+    const path = c => { let d = ''; for (let j = 0; j < kf; j++) d += (j ? 'L' : 'M') + X(j).toFixed(1) + ' ' + Y(rows[j][c]).toFixed(1); if (k > kf && kf < n) { const a = rows[kf - 1][c], b = rows[kf][c], t = k - kf; d += 'L' + X(kf - 1 + t).toFixed(1) + ' ' + Y(a + (b - a) * t).toFixed(1); } return d; };
+    const ends = [];
+    [[1, '--act', 'Actual', 2.6], [4, '--sn', 'Seasonal naive', 1.6], [3, '--rw', 'Random walk', 1.6], [2, '--sar', 'SARIMA', 2.2]].forEach(([c, col, nm, w]) => {
+      g += `<path d="${path(c)}" fill="none" stroke="${css(col)}" stroke-width="${w}" stroke-linejoin="round" ${c === 4 ? 'stroke-dasharray="2 3"' : ''}/>`;
+      const j = Math.min(n - 1, k - 1), lo2 = Math.floor(j), t = j - lo2, a = rows[lo2][c], b = rows[Math.min(n - 1, lo2 + 1)][c];
+      ends.push({c, col, nm, x: X(j), y: Y(a + (b - a) * t)});
+    });
+    if (!mob) { // direct labels, nudged apart
+      const L = ends.slice().sort((p, q) => p.y - q.y); L.forEach((p, i) => { p.ly = i ? Math.max(p.y, L[i - 1].ly + 15) : p.y; });
+      L.forEach(p => { g += `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${css(p.col)}"/><text x="${p.x + 8}" y="${p.ly + 4}" font-size="12" font-weight="700" fill="${css(p.col)}">${p.nm}</text>`; });
+    } else ends.forEach(p => g += `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${css(p.col)}"/>`);
+    svg2.innerHTML = g;
+    // race bars
+    const e = {}; MODELS.forEach(([id]) => e[id] = kf >= n ? OFFICIAL[rs.h][id] : cum[id][kf - 1]);
+    const order = MODELS.map(x => x[0]).sort((p, q) => e[p] - e[q] || (p === 'rw' ? -1 : 1));
+    order.forEach((id, pos) => { const b = brow[id]; b.y = pos * 56; b.el.style.transform = `translateY(${b.y}px)`; b.v.textContent = e[id].toFixed(3); b.bar.style.transform = `scaleX(${Math.min(1, Math.max(.004, e[id] / maxE))})`; b.bar.classList.toggle('cut', e[id] > maxE); b.el.classList.toggle('lead', pos === 0 && e[order[0]] < e[order[1]]); });
+    const tie = Math.abs(e.rw - e.sn) < 1e-9;
+    $('#vd').innerHTML = kf >= n
+      ? (order[0] === 'sar' ? `<b>SARIMA wins at ${rs.h} month${rs.h > 1 ? 's' : ''}.</b> ${e.sar.toFixed(3)} against ${e.rw.toFixed(3)} for the random walk.` : `<b>The random walk wins at ${rs.h} months.</b> ${e.rw.toFixed(3)} against ${e.sar.toFixed(3)} for SARIMA.${tie ? ' At 12 months the seasonal naive is the same forecast, so it ties.' : ''}`)
+      : `After ${kf} of ${n} months (${label(idxOf(rows[kf - 1][0]))}).`;
+    r2.value = kf; $('#sel2').style.left = '8px'; $('#sel2').style.width = (kf - 1) / (n - 1) * (r2.clientWidth - 16) + 'px';
+  }
+  // bars glide between ranks
+  if (!RM.matches) bx.querySelectorAll('.brow').forEach(el => { el.style.transition = 'transform .35s var(--ease)'; el.querySelector('.tr span').style.transition = 'transform .12s linear'; });
+  let raf2 = 0, racing = false;
+  function race() {
+    cancelAnimationFrame(raf2); const n = rows.length;
+    if (RM.matches) { rs.k = n; draw2(); return; }
+    racing = true; const t0 = performance.now(), dur = 3200;
+    const step = now => { const t = Math.min(1, (now - t0) / dur); rs.k = 1 + (n - 1) * t; draw2(); if (t < 1 && racing) raf2 = requestAnimationFrame(step); else racing = false; };
+    raf2 = requestAnimationFrame(step);
+  }
+  $('#p2').addEventListener('click', race);
+  r2.addEventListener('input', () => { racing = false; cancelAnimationFrame(raf2); rs.k = +r2.value; draw2(); });
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+    setH(+b.dataset.h); const p = new URLSearchParams(location.search); p.set('h', rs.h); history.replaceState(null, '', '?' + p + location.hash); race();
+  }));
+  svg2.parentElement.addEventListener('pointermove', ev => {
+    const r = svg2.getBoundingClientRect(), W = r.width, mob = W < 520, n = rows.length, ml = mob ? 30 : 36, mr = mob ? 10 : 100;
+    const j = Math.round((ev.clientX - r.left - ml) / (W - ml - mr) * (n - 1));
+    if (j < 0 || j >= Math.min(n, Math.ceil(rs.k))) { tip2.style.opacity = 0; return; }
+    const row = rows[j];
+    tip2.innerHTML = `<b>${label(idxOf(row[0]))}</b>` + [[1, '--act', 'Actual'], [2, '--sar', 'SARIMA'], [3, '--rw', 'Random walk'], [4, '--sn', 'Seasonal naive']].map(([c, col, nm]) => `<i style="background:${css(col)}"></i>${nm} <strong class="num">${f2(row[c])}%</strong>`).join('<br>');
+    tip2.style.opacity = 1; const x = ev.clientX - r.left, tw = tip2.offsetWidth;
+    tip2.style.left = Math.min(W - tw, Math.max(0, x + (x > W / 2 ? -tw - 14 : 14))) + 'px'; tip2.style.top = '10px';
+  });
+  svg2.parentElement.addEventListener('pointerleave', () => tip2.style.opacity = 0);
+  const h0 = +new URLSearchParams(location.search).get('h');
+  setH([1, 3, 6, 12].includes(h0) ? h0 : 1); rs.k = rows.length; draw2();
+  let raced = false;
+  new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting && !raced) { raced = true; race(); } }), {threshold: .45}).observe(svg2);
+  new ResizeObserver(() => draw2()).observe(svg2);
+
+  // standings table
+  $('#stand tbody').innerHTML = D.backtest.map(b => { const best = Math.min(b.sarima, b.rw, b.snaive); const td = v => `<td class="${v === best ? 'w' : ''}">${v.toFixed(3)}</td>`; return `<tr><td>${b.h} month${b.h > 1 ? 's' : ''} <small>(${b.n} forecasts)</small></td>${td(b.sarima)}${td(b.rw)}${td(b.snaive)}</tr>`; }).join('');
+
+  // AIC bars
+  const best = D.candidates[0].aic;
+  $('#aic').innerHTML = D.candidates.map((c, i) => { const da = c.aic - best, cut = da > 800; return `<li class="${i ? '' : 'win'}"><span class="o">${c.order.replace('[12]', '')}<sub>12</sub></span><span class="b">${i ? `<span class="${cut ? 'cut' : ''}" style="width:${cut ? 100 : da / 800 * 100}%"></span>` : ''}</span><span class="v">${i ? '+' + da.toFixed(1) : c.aic.toFixed(1).replace('-', '−')}</span></li>`; }).join('');
+
+  // theme change: redraw with the new colours
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { draw1(); draw2(); });
+
+  /* the film: never autoplays; the button starts it with sound, then native controls take over */
+  const film = $('#film video'), pb = $('#film .play');
+  film.controls = false;
+  pb.addEventListener('click', () => { film.preload = 'auto'; film.play().catch(() => {}); });
+  film.addEventListener('play', () => { film.controls = true; pb.remove(); }, {once: true});
+})();
+</script>
 </body>
 </html>

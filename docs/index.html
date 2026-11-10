@@ -319,12 +319,12 @@
       <div class="card">
         <h2 class="ct">Checks on what the model leaves behind</h2>
         <table class="dg num">
-          <tr><td>Ljung-Box, 12 lags<small>p above 0.05: no pattern left in the errors</small></td><td>p = 0.960</td></tr>
-          <tr><td>Ljung-Box, 24 lags</td><td>p = 1.000</td></tr>
+          <tr><td>Ljung-Box, 12 lags<small>p above 0.05 would mean no pattern left in the errors</small></td><td>p &lt; 0.001</td></tr>
+          <tr><td>Ljung-Box, 24 lags</td><td>p &lt; 0.001</td></tr>
           <tr><td>ADF on Δ ln CPI<small>p below 0.05: the differenced series is stationary</small></td><td>p = 0.0001</td></tr>
           <tr><td>One-month bias<small>mean of actual minus forecast, 34 months</small></td><td>−0.026 pp</td></tr>
         </table>
-        <p class="cs" style="margin-top:16px">In plain words: what the model gets wrong looks like random noise, so it has squeezed out the pattern in past prices. It is not systematically too high or too low.</p>
+        <p class="cs" style="margin-top:16px">In plain words: the model is not systematically too high or too low, but its errors are not pure noise. A miss one month tends to be followed by misses in the same direction for almost a year (autocorrelation 0.08 to 0.20 at lags 1 to 11, where noise would stay under 0.07). There is pattern left that this model does not capture. The test skips the 27 warm-up months the filter needs to start.</p>
       </div>
     </div>
   </section>
@@ -372,7 +372,7 @@
       <div><h3>It only knows past prices</h3><p>No oil, wages, interest rates or Fed decisions go in. A shock that is not in the price history is invisible to it.</p></div>
       <div><h3>The test window is short</h3><p>34, 32, 29 and 23 forecasts per horizon, all from one period (2023 to 2026). Another decade could rank them differently.</p></div>
       <div><h3>Parameters are fitted once</h3><p>The backtest re-filters the data month by month but does not refit, which is fast and leak-free but slightly kinder to drift.</p></div>
-      <div><h3>Seven candidates, not a full search</h3><p>The order comes from a curated shortlist of the usual seasonal models, not an exhaustive grid.</p></div>
+      <div><h3>Seven candidates, and a close call</h3><p>The order comes from a curated shortlist, not an exhaustive grid. The top three sit within 6.2 AIC points and the fit does not always converge, so the winner can change when a month of data is added.</p></div>
     </div>
   </section>
 

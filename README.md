@@ -29,8 +29,10 @@ out trend and seasonality, hold out a window, and show the model beats the naive
 The honest story: **SARIMA wins one month ahead; at three months it is a tie
 (0.572 vs 0.568) and at 6–12 months a random walk on the inflation rate is
 unbeatable** — a well-known result in the
-inflation-forecasting literature (Atkeson–Ohanian). Residuals pass Ljung-Box
-(p ≈ 0.96, white noise) and 1-step bias is ~0. The 12-month projection sees
+inflation-forecasting literature (Atkeson–Ohanian). 1-step bias is ~0, but the
+residuals do **not** pass Ljung-Box (p < 0.001 once the filter's 27 warm-up months
+are excluded): errors stay positively autocorrelated for almost a year, so there is
+pattern left that this model does not capture. The 12-month projection sees
 inflation easing from 3.72% (Sep 2026) to 3.11% (Oct 2027), 80% band 1.04% to 5.23%.
 
 ## Run

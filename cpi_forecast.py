@@ -191,7 +191,13 @@ def final_forecast(cpi, order, seasonal):
 
 
 def diagnostics(fit, cpi):
-    lb = acorr_ljungbox(fit.resid[13:].dropna(), lags=[12, 24], return_df=True)
+    # The filter spends its first months learning the starting level and seasonal shape.
+    # Residuals from that warm-up are start-up noise, not forecast errors: one of them is
+    # ~200x the normal size and on its own pushed Ljung-Box to p~1. Test only what follows.
+    burn = max(fit.loglikelihood_burn, fit.nobs_diffuse)
+    resid = fit.resid[burn:].dropna()
+    assert resid.abs().max() < 0.1, "a start-up residual leaked into the diagnostics"  # log CPI never misses by 10% in a month
+    lb = acorr_ljungbox(resid, lags=[12, 24], return_df=True)
     adf_p = adfuller(np.log(cpi).diff().dropna())[1]
     return fit.aic, lb["lb_pvalue"].to_dict(), adf_p
 

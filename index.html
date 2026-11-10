@@ -226,7 +226,7 @@ async function run(d){
   const c1=card();c1.innerHTML=head("01","The series")+
     `<h3>${esc(d.series_name)}</h3>
      <p class="sub"><span class="mono">${esc(d.series)}</span> · FRED, monthly · ${esc(d.start)} → ${esc(d.end)} · <span class="mono">${d.n}</span> observations</p>`;
-  stat("now","Inflation now (YoY)",d.latest_yoy+"%","red");
+  stat("now",`Inflation now (YoY, ${d.latest_yoy_date})`,d.latest_yoy+"%","red");
   await wait(1100);
 
   // 02 — the model
@@ -274,7 +274,7 @@ async function run(d){
     `<h3>Does it beat a baseline that actually fights back?</h3>
      <p class="sub">Walk-forward over 36 months. YoY-inflation error (RMSE, pp) by horizon. Green = winner.</p>
      <table class="tbl"><thead><tr><th>Horizon</th><th>SARIMA</th><th>RW inflation</th><th>Seas. naive</th></tr></thead><tbody>${btr}</tbody></table>
-     <div class="finding"><b>The honest finding.</b> SARIMA wins at short horizons (1–3 months); at 6–12 months a random walk on the inflation rate is unbeatable — the classic Atkeson–Ohanian result. 1-month bias: <b>${d.bias>0?'+':''}${d.bias} pp</b>.</div>`;
+     <div class="finding"><b>The honest finding.</b> SARIMA is at its best one month ahead; at 6–12 months a random walk on the inflation rate is unbeatable — the classic Atkeson–Ohanian result. 1-month bias: <b>${d.bias>0?'+':''}${d.bias} pp</b>.</div>`;
   stat("skill","Best @ 1 month","SARIMA","green");
   await wait(1800);
 

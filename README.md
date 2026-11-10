@@ -11,25 +11,27 @@ out trend and seasonality, hold out a window, and show the model beats the naive
 
 - **Data:** FRED series `CPIAUCSL` (US CPI), pulled from the public keyless CSV — no API key.
 - **Model selection:** SARIMA order chosen by **AIC** over a curated candidate set (the classic monthly "airline" family + richer variants) on `log(CPI)` — not a hard-coded guess. Current winner: `SARIMA(1,1,1)(0,1,1)₁₂`.
+- **Missing months stay missing:** BLS never published October 2025 (government shutdown). The month is kept as a gap, not dropped, so every year-over-year comparison spans exactly 12 months (an `assert` enforces it) and the Kalman filter skips it. October 2025 and October 2026 therefore have no YoY figure and are not scored.
 - **Backtest:** **walk-forward** over the last 36 months — at each month we forecast 1/3/6/12 months ahead using only past data, then score by horizon. This is how a forecaster is actually judged, not one static multi-year projection.
 - **Honest baselines:** random walk on the *inflation rate* (freeze the last YoY) and seasonal naive (YoY from a year ago). These are genuinely hard to beat, so the comparison is meaningful.
 - **Diagnostics:** ADF stationarity, Ljung-Box residual autocorrelation, AIC.
 - **Output:** tables to stdout + `cpi_forecast.png` (level forecast with 80% band, and 1-step walk-forward vs. actual inflation).
 
-## Result (as of Jun 2026 data) — RMSE on YoY inflation, by horizon
+## Result (as of Oct 2026 data) — RMSE on YoY inflation, by horizon
 
 | Horizon | SARIMA | RW-on-inflation | Seasonal naive |
 |--------:|-------:|----------------:|---------------:|
-| 1 month  | **0.24** | 0.32 | 2.29 |
-| 3 months | **0.49** | 0.51 | 1.93 |
-| 6 months | 0.64 | **0.53** | 1.45 |
-| 12 months| 1.15 | **0.83** | 0.83 |
+| 1 month  | **0.25** | 0.29 | 1.38 |
+| 3 months | 0.57 | **0.57** | 1.11 |
+| 6 months | 0.66 | **0.56** | 0.81 |
+| 12 months| 1.03 | **0.75** | 0.75 |
 
-The honest story: **SARIMA wins at short horizons (1–3 months); at 6–12 months a
-random walk on the inflation rate is unbeatable** — a well-known result in the
+The honest story: **SARIMA wins one month ahead; at three months it is a tie
+(0.572 vs 0.568) and at 6–12 months a random walk on the inflation rate is
+unbeatable** — a well-known result in the
 inflation-forecasting literature (Atkeson–Ohanian). Residuals pass Ljung-Box
-(p ≈ 0.95, white noise) and 1-step bias is ~0. The 12-month projection sees
-inflation easing from ~3.7% toward the Fed's 2% target.
+(p ≈ 0.96, white noise) and 1-step bias is ~0. The 12-month projection sees
+inflation easing from 3.72% (Sep 2026) to 3.11% (Oct 2027), 80% band 1.04% to 5.23%.
 
 ## Run
 

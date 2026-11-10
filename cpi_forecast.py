@@ -71,15 +71,41 @@ def load_series(series_id=DEFAULT_SERIES):
         df = pd.read_csv(io.BytesIO(r.read()))
     df.columns = ["date", "cpi"]
     s = pd.Series(df["cpi"].values, index=pd.to_datetime(df["date"]), name="cpi")
-    return s.asfreq("MS").dropna()   # SARIMAX needs an explicit monthly freq
+    # Keep every calendar month, published or not. A month the source never released
+    # (Oct 2025, US government shutdown) stays as NaN: SARIMAX's Kalman filter skips it,
+    # and row i-12 is always the same month a year earlier. Dropping it would shift
+    # every later row by one, so "12 rows back" would mean 13 months back.
+    s = s.asfreq("MS")
+    return s.loc[s.first_valid_index():s.last_valid_index()]
 
 
 load_cpi = load_series  # back-compat alias for main()
 
 
+def _months_apart(idx, lag):
+    m = idx.year * 12 + idx.month
+    return np.asarray(m[lag:] - m[:-lag])
+
+
+def assert_monthly(s):
+    """Every row must sit exactly 12 months after the row 12 places above it (and one
+    month after the previous one). shift(12) and the tp-12 lookups move by ROWS, so
+    this is what makes them year-over-year."""
+    assert (_months_apart(s.index, 1) == 1).all() and (_months_apart(s.index, 12) == 12).all(), \
+        "index has a missing month: keep it as NaN instead of dropping the row"
+
+
 def yoy(cpi):
-    """Year-over-year inflation, %."""
+    """Year-over-year inflation, %. NaN where either month was never published."""
+    assert_monthly(cpi)
     return 100.0 * (cpi / cpi.shift(12) - 1.0)
+
+
+def latest_yoy(cpi):
+    """(date, value) of the last month whose YoY exists: the newest month has none
+    when its base, the same month a year earlier, was never published."""
+    y = yoy(cpi).dropna()
+    return y.index[-1], float(y.iloc[-1])
 
 
 def _fit(logcpi, order, seasonal):
@@ -109,6 +135,7 @@ def walk_forward(cpi, order, seasonal):
     log = np.log(cpi)
     lvl = cpi.values.astype(float)
     yoy_act = yoy(cpi).values
+    yoy_known = pd.Series(yoy_act).ffill().values   # last YoY a forecaster had in hand at each month
     n, max_h = len(cpi), max(HORIZONS)
     start = n - HOLDOUT
 
@@ -118,7 +145,7 @@ def walk_forward(cpi, order, seasonal):
         # re-filter the first o months with the fixed params (fast, no refit)
         res = base_res.apply(log.iloc[:o]) if o > start else base_res
         fc = np.exp(np.asarray(res.forecast(max_h)))  # forecast levels for positions o..o+max_h-1
-        last_known_yoy = yoy_act[o - 1]
+        last_known_yoy = yoy_known[o - 1]
         for h in HORIZONS:
             tp = o + h - 1                          # target position (0-based)
             if tp >= n:
@@ -141,7 +168,7 @@ def score_by_horizon(bt):
     out = []
     for h in HORIZONS:
         s = bt[bt.h == h]
-        out.append((h, len(s),
+        out.append((h, int(s.actual.notna().sum()),   # months with no YoY cannot be scored
                     rmse(s.actual, s.sarima),
                     rmse(s.actual, s.rw_yoy),
                     rmse(s.actual, s.snaive)))
@@ -164,7 +191,7 @@ def final_forecast(cpi, order, seasonal):
 
 
 def diagnostics(fit, cpi):
-    lb = acorr_ljungbox(fit.resid[13:], lags=[12, 24], return_df=True)
+    lb = acorr_ljungbox(fit.resid[13:].dropna(), lags=[12, 24], return_df=True)
     adf_p = adfuller(np.log(cpi).diff().dropna())[1]
     return fit.aic, lb["lb_pvalue"].to_dict(), adf_p
 
@@ -206,7 +233,9 @@ def analyze(series_id=DEFAULT_SERIES):
     aic, lb, adf_p = diagnostics(fit, cpi)
 
     hist = yoy(cpi).dropna().iloc[-48:]
+    latest_date, latest = latest_yoy(cpi)
     combined = pd.concat([cpi, fc_lvl])
+    assert_monthly(combined)
     base12 = combined.shift(12).loc[fc_lvl.index]     # YoY base level for each forecast month
     fc_yoy = 100.0 * (fc_lvl / base12 - 1.0)
     lo_yoy = 100.0 * (ci["lo"] / base12 - 1.0)
@@ -217,8 +246,9 @@ def analyze(series_id=DEFAULT_SERIES):
         "series_name": SERIES[series_id],
         "start": cpi.index[0].strftime("%Y-%m"),
         "end": cpi.index[-1].strftime("%Y-%m"),
-        "n": int(len(cpi)),
-        "latest_yoy": round(float(yoy(cpi).iloc[-1]), 2),
+        "n": int(cpi.count()),
+        "latest_yoy": round(latest, 2),
+        "latest_yoy_date": latest_date.strftime("%Y-%m"),
         "candidates": [{"order": _fmt_order(o, s), "aic": round(a, 1)} for a, o, s in scored],
         "chosen": _fmt_order(order, seasonal),
         "backtest": [
@@ -236,6 +266,7 @@ def analyze(series_id=DEFAULT_SERIES):
             {"date": d.strftime("%Y-%m"), "yoy": round(float(fc_yoy[d]), 2),
              "lo": round(float(lo_yoy[d]), 2), "hi": round(float(hi_yoy[d]), 2)}
             for d in fc_lvl.index
+            if not np.isnan(fc_yoy[d])      # no YoY for a month whose base was never published
         ],
     }
 
@@ -244,6 +275,17 @@ def _selfcheck():
     idx = pd.date_range("2000-01-01", periods=25, freq="MS")
     doubling = pd.Series([100 * 2 ** (i / 12) for i in range(25)], index=idx)
     assert abs(yoy(doubling).iloc[-1] - 100.0) < 1e-6, "yoy() broken"
+    # A month the source never published: kept as NaN, so only that month and the same
+    # month a year later lose their YoY and every other comparison is still 12 months.
+    gap = doubling.copy(); gap.iloc[5] = np.nan
+    y = yoy(gap)
+    assert list(y.index[y.isna()][12:]) == [idx[17]], "a NaN month must only blank the same month a year later"
+    assert abs(y.iloc[-1] - 100.0) < 1e-6, "yoy() after a NaN month must still span 12 months"
+    try:
+        yoy(gap.dropna())      # the old bug: row dropped, shift(12) reaches 13 months back
+        raise SystemExit("yoy() accepted an index with a dropped month")
+    except AssertionError:
+        pass
     assert rmse([1, 2, 3], [1, 2, 3]) == 0, "rmse() broken"
     assert rmse([1, np.nan, 3], [1, 9, 3]) == 0, "rmse() should skip NaN pairs"
 
@@ -251,8 +293,11 @@ def _selfcheck():
 def main():
     _selfcheck()
     cpi = load_cpi()
-    print(f"CPI loaded: {cpi.index[0].date()} … {cpi.index[-1].date()} ({len(cpi)} months)")
-    print(f"Latest YoY inflation: {yoy(cpi).iloc[-1]:.2f}%\n")
+    missing = [d.strftime("%Y-%m") for d in cpi.index[cpi.isna()]]
+    print(f"CPI loaded: {cpi.index[0].date()} … {cpi.index[-1].date()} "
+          f"({cpi.count()} months, never published: {', '.join(missing) or 'none'})")
+    d, v = latest_yoy(cpi)
+    print(f"Latest YoY inflation: {v:.2f}% ({d:%b %Y})\n")
 
     scored = select_order(np.log(cpi))
     print("Model selection by AIC (lower = better):")

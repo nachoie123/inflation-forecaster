@@ -3,6 +3,8 @@
 Quantum project #2. Forecasts US consumer-price inflation with a classic
 seasonal-ARIMA model and backtests it honestly against naive baselines.
 
+**Live page and 57-second film:** [nachosanbenito.com/inflation-forecaster](https://nachosanbenito.com/inflation-forecaster/#film)
+
 The point isn't nailing the number — it's the process: pull real data, difference
 out trend and seasonality, hold out a window, and show the model beats the naive
 "tomorrow looks like today" forecast.
